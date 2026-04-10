@@ -568,9 +568,7 @@ body {
 }
 .animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); }
 .animal-pick.selected { border-color: var(--primary); background: #FFF0E8; }
-.animal-pick.taken { opacity: 0.6; }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
-.animal-pick .lock { font-size: 0.65rem; position: absolute; top: 4px; right: 6px; }
 
 /* --- TEACHER VIEW --- */
 .teacher-wrap {
@@ -825,7 +823,14 @@ const SERIES = {
 
 const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
 const ANIMALS = Object.keys(ANIMAL_EMOJI);
-const TEACHER_PIN = '1234'; // change this before sharing the teacher URL
+const ANIMAL_PINS = {
+  'Adler':'4821','Bär':'7354','Delfin':'1963','Elefant':'5207','Fuchs':'8630',
+  'Giraffe':'3175','Hamster':'6492','Igel':'9048','Jaguar':'2716','Koala':'5839',
+  'Löwe':'1024','Maus':'7461','Nashorn':'3958','Otter':'6203','Pinguin':'8547',
+  'Rabe':'4172','Schaf':'9635','Tiger':'2089','Uhu':'5314','Wolf':'7806',
+  'Zebra':'1493','Biber':'6750','Dachs':'3287','Flamingo':'8914','Känguru':'4563'
+};
+const TEACHER_PIN = '1234';
 
 let currentSeries = 1;
 let currentIndex = 0;
@@ -836,7 +841,6 @@ let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
 let selectedAnimal = '';
-let takenAnimals = {};
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -873,7 +877,7 @@ function speak(text, cb) {
 }
 
 // --- INIT ---
-async function init() {
+function init() {
   window.speechSynthesis.getVoices();
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
@@ -883,22 +887,12 @@ async function init() {
 
   const savedAnimal = localStorage.getItem('ws_animal');
   const savedPin = localStorage.getItem('ws_pin');
-  if (savedAnimal && savedPin) {
-    try {
-      const doc = await db.collection('students').doc(savedAnimal).get();
-      if (doc.exists && doc.data().pin === savedPin) {
-        myAnimal = savedAnimal;
-        document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[savedAnimal] || '') + ' ' + savedAnimal;
-        renderSeriesGrid();
-        showScreen('startScreen');
-        return;
-      }
-    } catch(e) {
-      console.warn('Session check failed:', e);
-    }
-    localStorage.removeItem('ws_animal');
-    localStorage.removeItem('ws_pin');
+  if (savedAnimal && savedPin && ANIMAL_PINS[savedAnimal] === savedPin) {
+    loginAs(savedAnimal, savedPin);
+    return;
   }
+  localStorage.removeItem('ws_animal');
+  localStorage.removeItem('ws_pin');
   showAnimalSelect();
 }
 
@@ -1186,14 +1180,7 @@ function launchConfetti() {
 }
 
 // --- ANIMAL IDENTITY ---
-async function showAnimalSelect() {
-  try {
-    const snapshot = await db.collection('students').get();
-    takenAnimals = {};
-    snapshot.forEach(doc => { takenAnimals[doc.id] = true; });
-  } catch(e) {
-    console.warn('Could not fetch students:', e);
-  }
+function showAnimalSelect() {
   renderAnimalGrid();
   showScreen('animalSelectScreen');
 }
@@ -1204,9 +1191,8 @@ function renderAnimalGrid() {
   document.getElementById('animalPinSection').classList.add('hidden');
   ANIMALS.forEach(animal => {
     const btn = document.createElement('button');
-    const taken = takenAnimals[animal];
-    btn.className = 'animal-pick' + (taken ? ' taken' : '') + (animal === selectedAnimal ? ' selected' : '');
-    btn.innerHTML = `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}${taken ? '<span class="lock">🔒</span>' : ''}`;
+    btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '');
+    btn.innerHTML = `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
     btn.onclick = () => pickAnimal(animal);
     grid.appendChild(btn);
   });
@@ -1224,46 +1210,21 @@ function pickAnimal(animal) {
   section.classList.remove('hidden');
   error.classList.add('hidden');
   input.value = '';
-
-  if (takenAnimals[animal]) {
-    label.innerHTML = `${ANIMAL_EMOJI[animal]} <strong>${esc(animal)}</strong> — PIN eingeben:`;
-  } else {
-    label.innerHTML = `${ANIMAL_EMOJI[animal]} <strong>${esc(animal)}</strong> — erstelle einen PIN (4 Zeichen):`;
-  }
+  label.innerHTML = `${ANIMAL_EMOJI[animal]} <strong>${esc(animal)}</strong> — PIN eingeben:`;
   input.focus();
 }
 
-async function confirmAnimal() {
+function confirmAnimal() {
   const pin = document.getElementById('animalPinInput').value.trim();
   const error = document.getElementById('animalPinError');
 
-  if (pin.length < 4) {
-    error.textContent = 'PIN muss mindestens 4 Zeichen haben.';
-    error.classList.remove('hidden');
-    return;
-  }
+  if (!pin) return;
 
-  if (takenAnimals[selectedAnimal]) {
-    try {
-      const doc = await db.collection('students').doc(selectedAnimal).get();
-      if (doc.exists && doc.data().pin === pin) {
-        loginAs(selectedAnimal, pin);
-      } else {
-        error.textContent = 'Falscher PIN.';
-        error.classList.remove('hidden');
-      }
-    } catch(e) {
-      error.textContent = 'Fehler: ' + e.message;
-      error.classList.remove('hidden');
-    }
+  if (ANIMAL_PINS[selectedAnimal] === pin) {
+    loginAs(selectedAnimal, pin);
   } else {
-    try {
-      await db.collection('students').doc(selectedAnimal).set({ pin, created: Date.now() });
-      loginAs(selectedAnimal, pin);
-    } catch(e) {
-      error.textContent = 'Fehler: ' + e.message;
-      error.classList.remove('hidden');
-    }
+    error.textContent = 'Falscher PIN.';
+    error.classList.remove('hidden');
   }
 }
 
