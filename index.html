@@ -687,8 +687,7 @@ function getCanonical(entry) {
 
 function isCorrectAnswer(entry, typed) {
   if (Array.isArray(entry)) {
-    return entry.some(v => v.trim().toLowerCase() === typed.trim().toLowerCase()) ||
-           entry.some(v => v.trim() === typed.trim());
+    return entry.some(v => v.trim().toLowerCase() === typed.trim().toLowerCase());
   }
   return entry.trim() === typed.trim();
 }
@@ -720,7 +719,8 @@ function init() {
 function renderSeriesGrid() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
-  for (let i = 1; i <= 10; i++) {
+  Object.keys(SERIES).forEach(key => {
+    const i = parseInt(key);
     const btn = document.createElement('button');
     btn.className = 'series-btn';
     const best = localStorage.getItem('ws_best_' + i);
@@ -728,7 +728,6 @@ function renderSeriesGrid() {
     if (best !== null && parseInt(best) >= Math.ceil(total * 0.8)) {
       btn.classList.add('completed');
     }
-    // Preview: first 3 canonical words
     const preview = SERIES[i].slice(0, 3).map(getCanonical).join(', ');
     btn.innerHTML = `Serie ${i}<span class="label">${preview}…</span>`;
     if (best !== null) {
@@ -736,7 +735,7 @@ function renderSeriesGrid() {
     }
     btn.onclick = () => selectSeries(i);
     grid.appendChild(btn);
-  }
+  });
 }
 
 function buildDotHistory(seriesNum) {
@@ -810,17 +809,14 @@ function loadQuestion() {
   setTimeout(() => speakWord(), 300);
 }
 
-function speakWord() {
-  const btn = document.getElementById('listenBtn');
+function speakCurrent(btnId, index) {
+  const btn = document.getElementById(btnId);
   btn.classList.add('playing');
-  speak(getCanonical(words[currentIndex]), () => btn.classList.remove('playing'));
+  speak(getCanonical(words[index]), () => btn.classList.remove('playing'));
 }
 
-function speakFlashWord() {
-  const btn = document.getElementById('flashListenBtn');
-  btn.classList.add('playing');
-  speak(getCanonical(words[flashIndex]), () => btn.classList.remove('playing'));
-}
+function speakWord() { speakCurrent('listenBtn', currentIndex); }
+function speakFlashWord() { speakCurrent('flashListenBtn', flashIndex); }
 
 function checkAnswer() {
   if (answered) return;
@@ -1012,7 +1008,6 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('load', init);
-window.speechSynthesis.onvoiceschanged = () => {};
 </script>
 
 </body>
