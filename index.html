@@ -901,7 +901,7 @@ function speak(text, cb) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'de-CH';
-  u.rate = 0.82;
+  u.rate = 0.7;
   const voices = window.speechSynthesis.getVoices();
   // Prefer high-quality voices: Google > network voices > any de voice
   const deVoices = voices.filter(v => v.lang.startsWith('de'));
