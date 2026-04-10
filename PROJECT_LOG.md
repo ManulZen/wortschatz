@@ -1,6 +1,23 @@
 # PROJECT_LOG.md — Wortschatz-Trainer
 
 Running log of decisions, issues, and changes. Newest entries first.
+For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARCHIVE.md).
+
+---
+
+## 2026-04-10 — Session 6: Architecture cleanup
+
+**Problems found and fixed:**
+1. **Dual source of truth for scores** — `showResults()` wrote to both localStorage and Firestore. If Firestore write failed, next `syncFromFirestore()` wiped localStorage. Fix: removed all localStorage writes from `showResults()`. Firestore is now the single source of truth. `syncFromFirestore()` rebuilds localStorage as a read cache.
+2. **Dead `students` collection** — Firestore auth was replaced with hardcoded `ANIMAL_PINS` in session 4, but docs still referenced `students` collection. Cleaned from CLAUDE.md and PROJECT_LOG.md.
+3. **`loadCustomSeries` used `d.num` field** — redundant with doc ID, could diverge. Now uses `Number(doc.id)`. Removed `num` field from `addCustomSeries` writes.
+4. **`teacherData` was module-level** — only used in teacher dashboard render. Now a local in `loadTeacherDashboard`, passed to `renderTeacherGrid`.
+5. **`selectedAnimal` leaked after login** — never cleared. Now reset in `loginAs()`.
+6. **Stale CLAUDE.md** — architecture section, student identity section, firebase section, history table all had outdated references (`takenAnimals`, `students` collection, `saveResult`, `TEACHER_PIN`). Full rewrite.
+7. **Series edit missing** — teacher could add/delete custom series but not edit. Added `editCustomSeries()` with inline editing UI.
+8. **Teacher password input too narrow** — 160px for a 14-char password. Widened to 260px, placeholder changed from `••••` to `Passwort`.
+
+**Full innerHTML/XSS audit:** All 25 innerHTML assignments verified safe — every Firestore/user-sourced value goes through `esc()` or `Number()` or is set via `.textContent`/`.title`.
 
 ---
 
@@ -8,93 +25,26 @@ Running log of decisions, issues, and changes. Newest entries first.
 
 **What was done:**
 - Removed dead `teacherDocs` variable (populated but never read)
-- Fixed XSS in `renderSeriesGrid` — custom series preview from Firestore now wrapped in `esc()`
-- Fixed XSS in `checkAnswer` — correction display for custom series entries now wrapped in `esc()`
-- Replaced fragile `isCustom = num > 10` with `BUILTIN_SERIES = new Set(Object.keys(SERIES).map(Number))`
-- Fixed `renderSeriesGrid` key order — now `.map(Number).sort((a, b) => a - b)` for guaranteed numeric sort
-- Merged `saveResult()` + `saveFlashcardComplete()` into single `saveToFirestore(data)` function
-
-**Result:** File reduced from 1559 → 1535 lines. All innerHTML assignments verified safe.
+- Fixed XSS in `renderSeriesGrid` — custom series preview now wrapped in `esc()`
+- Fixed XSS in `checkAnswer` — correction display now wrapped in `esc()`
+- Replaced fragile `isCustom = num > 10` with `BUILTIN_SERIES` Set
+- Fixed `renderSeriesGrid` key order — guaranteed numeric sort
+- Merged `saveResult()` + `saveFlashcardComplete()` into single `saveToFirestore(data)`
 
 ---
 
 ## 2026-04-10 — Session 4: Features + hashed teacher PIN
 
 **What was built:**
-- Per-word mistake tracking: quiz results now include `mistakes` array, teacher grid shows mistake details on click
-- Flashcard completion tracking: `saveToFirestore({mode:'flashcard'})` writes completion to Firestore
-- Student data reset: teacher can delete all results for a specific animal via trash icon
-- Custom series management: teacher can add/delete custom word series, stored in Firestore `custom_series` collection
-- Hashed teacher PIN: `TEACHER_PIN` replaced with `TEACHER_HASH` (SHA-256 via Web Crypto API), password: `Neznamba13.123`
+- Per-word mistake tracking: quiz results include `mistakes` array, teacher grid shows frequent errors
+- Flashcard completion tracking: `saveToFirestore({mode:'flashcard'})` on completion
+- Student data reset: teacher can delete all results for a student via trash icon
+- Custom series management: add/edit/delete from teacher dashboard, stored in Firestore `custom_series`
+- Hashed teacher PIN: `TEACHER_HASH` (SHA-256 via Web Crypto API)
+- Hardcoded `ANIMAL_PINS` replacing Firestore-based auth (zero network dependency at login)
 
-**Firestore collections now:**
+**Firestore collections:**
 - `results` — quiz/flashcard results `{animal, series, correct, total, mistakes, mode, ts}`
-- `students` — animal registrations `{pin, created}`, doc ID = animal name
-- `custom_series` — teacher-created series `{words: [...]}`, doc ID = series number
-
-**Decisions:**
-- `BUILTIN_SERIES` Set tracks original series numbers — custom detection no longer relies on `num > 10`
-- `saveToFirestore(data)` is single unified write function — merges base fields `{animal, series, ts}` with caller data
-- SHA-256 hash compared in constant-time-ish manner (good enough for classroom)
-
----
-
-## 2026-04-10 — Session 3: Animal PIN auth system
-
-**What was built:**
-- Animal selection screen: grid of 25 animals, taken ones show 🔒
-- PIN system: 4-character PIN per animal, stored in Firestore `students/{animal}`
-- Session persistence: localStorage `ws_animal` + `ws_pin`, validated against Firestore on load
-- Login flow: pick taken animal → enter PIN → validated → start screen
-- Register flow: pick free animal → create PIN → saved to Firestore → start screen
-- Logout: "Wechseln" button on start screen clears session
-- `startScreen` now hidden by default — `init()` decides what to show after Firestore check
-
-**Firestore collections now:**
-- `results` — quiz results `{animal, series, correct, total, ts}`
-- `students` — animal registrations `{pin, created}`, doc ID = animal name
-
-**Decisions:**
-- PIN stored as plaintext in Firestore — acceptable for classroom use, not real security
-- No dedup mechanism beyond Firestore doc (first to register claims the animal)
-- Race condition possible if two students pick same free animal simultaneously — very unlikely in practice
-
----
-
-## 2026-04-10 — Session 2: Security audit & refactor
-
-**State:** Single `index.html` — ~1246 lines. Firebase Firestore integration live. Deployed via Vercel.
-
-**Bugs found & fixed:**
-1. **XSS in mistakes list** — `r.typed` (raw user input) injected straight into `innerHTML` in `showResults()`. A student could type `<img src=x onerror=alert(1)>` and it would execute. Fixed: added `esc()` HTML-escaping helper, applied to all user/external data in `innerHTML`.
-2. **XSS in teacher grid** — Firestore data (`correct`, `total`) rendered via `innerHTML`. Since Firestore rules are wide open, anyone can write arbitrary HTML. Fixed: coerce values to `Number()` before rendering.
-3. **XSS in buildDotHistory** — localStorage values injected into `title` attribute without escaping. Fixed: wrapped in `esc()`.
-4. **Redundant ANIMALS array** — Identical data to `Object.keys(ANIMAL_EMOJI)`. Removed, now derived.
-5. **listen-btn centering bug** — Button had `display: flex` (block-level) but parent relied on `text-align: center` (only works on inline elements). Centered by accident in some browsers. Fixed: added `margin: 0 auto`.
-6. **Stale CLAUDE.md and PROJECT_LOG.md** — Both said "no backend, localStorage only" but we have Firebase. Both mentioned GitHub Pages but deployment is on Vercel. Fixed: full rewrite of both.
-
-**Known remaining issues:**
-- Firestore rules are `allow read, write: if true` — fine for single-class test, must lock down before wider use
-- `TEACHER_PIN` is plaintext in client JS — anyone viewing source can see it
-- Animal assignment can collide (25 pool, random pick) — unlikely for one class but no deduplication
-- Firebase compat SDK pinned to 10.12.2 — will go stale
-
----
-
-## 2026-04-10 — Session 1: Initial audit, cleanup, Firebase integration
-
-**State:** Single `index.html` — started at ~1018 lines, ended at ~1246.
-
-**What was built:**
-- Firebase Firestore integration (compat SDK via CDN, no build step)
-- Anonymous student identity via random animal names (25 animals, stored in localStorage)
-- Teacher dashboard at `?teacher` URL param, PIN-protected
-- Teacher view: grid of animals × series, last score + attempt count, color-coded
-
-**Bugs fixed:**
-1. `renderSeriesGrid` hardcoded `for (let i = 1; i <= 10; i++)` — won't pick up new series. Fixed to iterate `Object.keys(SERIES)`.
-2. `speakWord()` and `speakFlashWord()` duplicated, differing only by button ID. Merged into `speakCurrent(btnId, index)`.
-3. `window.speechSynthesis.onvoiceschanged = () => {};` was a no-op — removed.
-4. `isCorrectAnswer` for arrays: redundant `|| exact-match` branch (case-insensitive already covers it). Simplified.
+- `custom_series` — teacher-created series `{words[], created}`, doc ID = series number
 
 ---

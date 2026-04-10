@@ -870,7 +870,6 @@ let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
 let selectedAnimal = '';
-let teacherData = {};
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -1088,28 +1087,17 @@ function showResults() {
   const total = results.length;
   const pct = Math.round((correctCount / total) * 100);
 
-  // Save best score
-  const prev = localStorage.getItem('ws_best_' + currentSeries);
-  if (prev === null || correctCount > parseInt(prev)) {
-    localStorage.setItem('ws_best_' + currentSeries, correctCount);
-  }
-
-  // Save history (last 10 attempts)
-  const histKey = 'ws_history_' + currentSeries;
-  const history = JSON.parse(localStorage.getItem(histKey) || '[]');
-  history.push({ correct: correctCount, total, date: Date.now() });
-  if (history.length > 10) history.shift();
-  localStorage.setItem(histKey, JSON.stringify(history));
-
   const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
   const mistakeWords = wrongEntries.map(getCanonical);
-  saveToFirestore({ correct: correctCount, total, mistakes: mistakeWords, mode: 'quiz' });
+  saveToFirestore({ correct: correctCount, total, mistakes: mistakeWords, mode: 'quiz' })
+    .then(() => syncFromFirestore());
 
   // Save wrong words for retry
   lastWrongWords[currentSeries] = wrongEntries;
 
-  const best = parseInt(localStorage.getItem('ws_best_' + currentSeries));
   const totalSeries = SERIES[currentSeries].length;
+  const prevBest = parseInt(localStorage.getItem('ws_best_' + currentSeries)) || 0;
+  const best = Math.max(prevBest, correctCount);
 
   document.getElementById('scoreBig').textContent = `${correctCount} / ${total}`;
   document.getElementById('resultsDetail').textContent = `${pct}% richtig`;
@@ -1270,9 +1258,39 @@ function loginAs(animal, pin) {
   localStorage.setItem('ws_animal', animal);
   localStorage.setItem('ws_pin', pin);
   myAnimal = animal;
+  selectedAnimal = '';
   document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
   renderSeriesGrid();
   showScreen('startScreen');
+  syncFromFirestore();
+}
+
+async function syncFromFirestore() {
+  try {
+    const snap = await db.collection('results').where('animal', '==', myAnimal).where('mode', '==', 'quiz').get();
+    // Group results by series
+    const bySeries = {};
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!d.series) return;
+      if (!bySeries[d.series]) bySeries[d.series] = [];
+      bySeries[d.series].push({ correct: d.correct || 0, total: d.total || 0, date: d.ts || 0 });
+    });
+    // Clear all ws_best_ and ws_history_ keys, then rebuild from Firestore
+    Object.keys(SERIES).forEach(k => {
+      localStorage.removeItem('ws_best_' + k);
+      localStorage.removeItem('ws_history_' + k);
+    });
+    Object.keys(bySeries).forEach(s => {
+      const attempts = bySeries[s].sort((a, b) => a.date - b.date);
+      const best = Math.max(...attempts.map(a => a.correct));
+      localStorage.setItem('ws_best_' + s, best);
+      localStorage.setItem('ws_history_' + s, JSON.stringify(attempts.slice(-10)));
+    });
+    renderSeriesGrid();
+  } catch(e) {
+    console.warn('Sync from Firestore failed:', e);
+  }
 }
 
 function logout() {
@@ -1313,7 +1331,7 @@ async function loadTeacherDashboard() {
     snapshot.forEach(doc => docs.push(doc.data()));
     docs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-    teacherData = {};
+    const teacherData = {};
     docs.forEach(r => {
       if (!r.animal) return;
       if (!teacherData[r.animal]) teacherData[r.animal] = {};
@@ -1327,7 +1345,7 @@ async function loadTeacherDashboard() {
       }
     });
 
-    renderTeacherGrid();
+    renderTeacherGrid(teacherData);
     renderSeriesManager();
     const quizCount = docs.filter(d => d.mode !== 'flashcard').length;
     const flashCount = docs.filter(d => d.mode === 'flashcard').length;
@@ -1340,7 +1358,7 @@ async function loadTeacherDashboard() {
   }
 }
 
-function renderTeacherGrid() {
+function renderTeacherGrid(teacherData) {
   const seriesKeys = Object.keys(SERIES).map(Number);
   const animals = Object.keys(teacherData).sort();
   const grid = document.getElementById('teacherGrid');
@@ -1439,8 +1457,9 @@ async function loadCustomSeries() {
     const snapshot = await db.collection('custom_series').get();
     snapshot.forEach(doc => {
       const d = doc.data();
-      if (d.num && d.words && Array.isArray(d.words)) {
-        SERIES[d.num] = d.words;
+      const num = Number(doc.id);
+      if (num && d.words && Array.isArray(d.words)) {
+        SERIES[num] = d.words;
       }
     });
   } catch(e) {
@@ -1473,7 +1492,6 @@ async function addCustomSeries() {
 
   try {
     await db.collection('custom_series').doc(String(nextNum)).set({
-      num: nextNum,
       words,
       created: Date.now()
     });
@@ -1506,6 +1524,12 @@ function renderSeriesManager() {
     div.className = 'series-manage-item';
     div.innerHTML = `<span class="snum">S${num}</span><span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})</span>${isCustom ? '<span class="custom-badge">Eigene</span>' : ''}`;
     if (isCustom) {
+      const edit = document.createElement('button');
+      edit.className = 'series-del-btn';
+      edit.textContent = '✏️';
+      edit.title = 'Serie ' + num + ' bearbeiten';
+      edit.onclick = () => editCustomSeries(num);
+      div.appendChild(edit);
       const del = document.createElement('button');
       del.className = 'series-del-btn';
       del.textContent = '🗑';
@@ -1515,6 +1539,45 @@ function renderSeriesManager() {
     }
     container.appendChild(div);
   });
+}
+
+function editCustomSeries(num) {
+  const container = document.getElementById('seriesManager');
+  const items = container.querySelectorAll('.series-manage-item');
+  const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
+  const idx = keys.indexOf(num);
+  if (idx < 0) return;
+  const div = items[idx];
+  const words = SERIES[num];
+  const serialized = words.map(w => Array.isArray(w) ? w.join('/') : w).join(', ');
+  div.innerHTML = `<span class="snum">S${num}</span>`;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'word-input';
+  input.style.cssText = 'flex:1;font-size:0.9rem;text-align:left;font-weight:400;margin:0 8px';
+  input.value = serialized;
+  const save = document.createElement('button');
+  save.className = 'check-btn';
+  save.textContent = '💾';
+  save.style.cssText = 'padding:6px 12px;font-size:1rem';
+  save.onclick = async () => {
+    const newWords = parseSeriesInput(input.value);
+    if (newWords.length < 2) { alert('Mindestens 2 Wörter.'); return; }
+    try {
+      await db.collection('custom_series').doc(String(num)).update({ words: newWords });
+      SERIES[num] = newWords;
+      renderSeriesManager();
+    } catch(e) { alert('Fehler: ' + e.message); }
+  };
+  const cancel = document.createElement('button');
+  cancel.className = 'series-del-btn';
+  cancel.textContent = '✖';
+  cancel.title = 'Abbrechen';
+  cancel.onclick = () => renderSeriesManager();
+  div.appendChild(input);
+  div.appendChild(save);
+  div.appendChild(cancel);
+  input.focus();
 }
 
 // Enter key support
