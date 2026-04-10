@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Wortschatz-Trainer</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -534,6 +536,73 @@ body {
 /* --- HIDDEN --- */
 .hidden { display: none !important; }
 
+/* --- ANIMAL BADGE --- */
+.animal-badge {
+  font-size: 1rem;
+  color: var(--text-light);
+  margin-top: 8px;
+}
+
+/* --- TEACHER VIEW --- */
+.teacher-wrap {
+  padding: 24px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.teacher-wrap h1 {
+  font-family: 'Fredoka', sans-serif;
+  color: var(--primary);
+  font-size: 2rem;
+  margin-bottom: 4px;
+}
+.teacher-meta {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.refresh-btn {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.95rem;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.2s;
+}
+.refresh-btn:hover { transform: translateY(-2px); }
+.teacher-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.teacher-table th {
+  background: var(--primary);
+  color: white;
+  padding: 10px 14px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1rem;
+}
+.teacher-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #F0F0F0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.teacher-table tr:last-child td { border-bottom: none; }
+.teacher-table tr:hover td { background: #FFF8F0; }
+.animal-col { text-align: left !important; font-weight: 700; white-space: nowrap; }
+.cell-done { color: var(--success); font-weight: 700; }
+.cell-mid { color: #E67E22; font-weight: 700; }
+.cell-poor { color: var(--error); font-weight: 700; }
+.cell-none { color: #CCC; }
+.attempt-count { display: block; font-size: 0.72rem; color: var(--text-light); }
+
 /* --- CONFETTI --- */
 .confetti-container {
   position: fixed;
@@ -564,6 +633,7 @@ body {
   <h1>Wortschatz-Trainer</h1>
   <p class="subtitle">Wähle eine Serie zum Üben</p>
   <div class="series-grid" id="seriesGrid"></div>
+  <p class="animal-badge" id="animalBadge"></p>
 </div>
 
 <!-- MODE SELECT -->
@@ -654,9 +724,43 @@ body {
   </div>
 </div>
 
+<!-- TEACHER LOGIN -->
+<div id="teacherLoginScreen" class="start-screen hidden">
+  <h1 style="font-family:'Fredoka',sans-serif;color:var(--primary);margin-bottom:24px">Lehreransicht</h1>
+  <div class="quiz-card" style="max-width:360px;padding:32px">
+    <p style="margin-bottom:16px;color:var(--text-light)">PIN eingeben</p>
+    <div class="input-row" style="justify-content:center">
+      <input type="password" id="pinInput" class="word-input" style="max-width:160px;font-size:1.2rem" placeholder="••••" onkeydown="if(event.key==='Enter')checkPin()">
+      <button class="check-btn" onclick="checkPin()">OK</button>
+    </div>
+    <p id="pinError" class="hidden" style="color:var(--error);margin-top:12px;font-size:0.9rem">Falscher PIN.</p>
+  </div>
+</div>
+
+<!-- TEACHER DASHBOARD -->
+<div id="teacherScreen" class="hidden">
+  <div class="teacher-wrap">
+    <h1>Klassen-Übersicht</h1>
+    <p class="teacher-meta" id="teacherMeta"></p>
+    <button class="refresh-btn" onclick="loadTeacherDashboard()">↻ Aktualisieren</button>
+    <div id="teacherGrid"><p style="color:var(--text-light)">Lade Daten…</p></div>
+  </div>
+</div>
+
 <div class="confetti-container" id="confetti"></div>
 
 <script>
+// --- FIREBASE ---
+firebase.initializeApp({
+  apiKey: "AIzaSyCA71liyYaCJsA-03LHONTSxqpuOkgqTFE",
+  authDomain: "wortschatz-2046c.firebaseapp.com",
+  projectId: "wortschatz-2046c",
+  storageBucket: "wortschatz-2046c.firebasestorage.app",
+  messagingSenderId: "778444536368",
+  appId: "1:778444536368:web:15a71a1d852743502b0bf5"
+});
+const db = firebase.firestore();
+
 // Words can be a string (single accepted answer) or an array (multiple accepted answers).
 // For arrays, any entry is accepted. The first entry is spoken via TTS.
 const SERIES = {
@@ -672,6 +776,10 @@ const SERIES = {
   10: ["hätte", "ihm", "kennt", "denn", "vielleicht", "wenig", "lässt", "will", "stand", "Fahrräder"]
 };
 
+const ANIMALS = ['Adler','Bär','Delfin','Elefant','Fuchs','Giraffe','Hamster','Igel','Jaguar','Koala','Löwe','Maus','Nashorn','Otter','Pinguin','Rabe','Schaf','Tiger','Uhu','Wolf','Zebra','Biber','Dachs','Flamingo','Känguru'];
+const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
+const TEACHER_PIN = '1234'; // change this before sharing the teacher URL
+
 let currentSeries = 1;
 let currentIndex = 0;
 let words = [];       // current quiz word list (entries may be string or array)
@@ -679,6 +787,7 @@ let results = [];
 let answered = false;
 let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
+let myAnimal = '';
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -713,6 +822,12 @@ function speak(text, cb) {
 // --- INIT ---
 function init() {
   window.speechSynthesis.getVoices();
+  if (new URLSearchParams(window.location.search).has('teacher')) {
+    showScreen('teacherLoginScreen');
+    document.getElementById('pinInput').focus();
+    return;
+  }
+  assignAnimal();
   renderSeriesGrid();
 }
 
@@ -769,7 +884,7 @@ function selectSeries(n) {
 }
 
 function showScreen(id) {
-  ['startScreen', 'modeScreen', 'quizScreen', 'flashScreen', 'resultsScreen'].forEach(s => {
+  ['startScreen', 'modeScreen', 'quizScreen', 'flashScreen', 'resultsScreen', 'teacherLoginScreen', 'teacherScreen'].forEach(s => {
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -885,6 +1000,8 @@ function showResults() {
   if (history.length > 10) history.shift();
   localStorage.setItem(histKey, JSON.stringify(history));
 
+  saveResult(correctCount, total);
+
   // Save wrong words for retry
   const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
   lastWrongWords[currentSeries] = wrongEntries;
@@ -995,6 +1112,120 @@ function launchConfetti() {
     container.appendChild(piece);
   }
   setTimeout(() => container.innerHTML = '', 4000);
+}
+
+// --- ANIMAL IDENTITY ---
+function assignAnimal() {
+  let animal = localStorage.getItem('ws_animal');
+  if (!animal) {
+    animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    localStorage.setItem('ws_animal', animal);
+  }
+  myAnimal = animal;
+  document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
+}
+
+// --- FIREBASE WRITE ---
+async function saveResult(correct, total) {
+  try {
+    await db.collection('results').add({
+      animal: myAnimal,
+      series: currentSeries,
+      correct,
+      total,
+      ts: Date.now()
+    });
+  } catch(e) {
+    console.warn('Could not save result:', e);
+  }
+}
+
+// --- TEACHER VIEW ---
+function checkPin() {
+  const input = document.getElementById('pinInput');
+  if (input.value === TEACHER_PIN) {
+    showScreen('teacherScreen');
+    loadTeacherDashboard();
+  } else {
+    document.getElementById('pinError').classList.remove('hidden');
+    input.value = '';
+    input.focus();
+  }
+}
+
+async function loadTeacherDashboard() {
+  document.getElementById('teacherGrid').innerHTML = '<p style="color:var(--text-light)">Lade Daten…</p>';
+  try {
+    const snapshot = await db.collection('results').get();
+    const docs = [];
+    snapshot.forEach(doc => docs.push(doc.data()));
+    docs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+    const data = {};
+    docs.forEach(r => {
+      if (!data[r.animal]) data[r.animal] = {};
+      if (!data[r.animal][r.series]) data[r.animal][r.series] = [];
+      data[r.animal][r.series].push({ correct: r.correct, total: r.total });
+    });
+
+    renderTeacherGrid(data);
+    const time = new Date().toLocaleTimeString('de-CH');
+    document.getElementById('teacherMeta').textContent =
+      `${Object.keys(data).length} Schüler · ${docs.length} Versuche insgesamt · Stand: ${time}`;
+  } catch(e) {
+    document.getElementById('teacherGrid').innerHTML =
+      `<p style="color:var(--error)">Fehler beim Laden: ${e.message}</p>`;
+  }
+}
+
+function renderTeacherGrid(data) {
+  const seriesKeys = Object.keys(SERIES).map(Number);
+  const animals = Object.keys(data).sort();
+  const grid = document.getElementById('teacherGrid');
+
+  if (animals.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-light)">Noch keine Daten vorhanden.</p>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'teacher-table';
+
+  const thead = table.createTHead();
+  const hr = thead.insertRow();
+  const th0 = document.createElement('th');
+  th0.textContent = 'Schüler';
+  th0.style.textAlign = 'left';
+  hr.appendChild(th0);
+  seriesKeys.forEach(s => {
+    const th = document.createElement('th');
+    th.textContent = 'S' + s;
+    hr.appendChild(th);
+  });
+
+  const tbody = table.createTBody();
+  animals.forEach(animal => {
+    const row = tbody.insertRow();
+    const nameCell = row.insertCell();
+    nameCell.className = 'animal-col';
+    nameCell.textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
+
+    seriesKeys.forEach(s => {
+      const cell = row.insertCell();
+      const attempts = data[animal][s];
+      if (!attempts) {
+        cell.innerHTML = '<span class="cell-none">—</span>';
+      } else {
+        const last = attempts[attempts.length - 1];
+        const pct = last.correct / last.total;
+        const cls = pct >= 0.8 ? 'cell-done' : pct >= 0.5 ? 'cell-mid' : 'cell-poor';
+        cell.innerHTML = `<span class="${cls}">${last.correct}/${last.total}</span><span class="attempt-count">${attempts.length}×</span>`;
+      }
+    });
+  });
+
+  grid.innerHTML = '';
+  grid.appendChild(table);
 }
 
 // Enter key support
