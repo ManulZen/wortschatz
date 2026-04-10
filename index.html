@@ -264,7 +264,7 @@ body {
   cursor: pointer;
   box-shadow: 0 6px 24px rgba(255,107,53,0.35);
   transition: all 0.2s;
-  margin-bottom: 28px;
+  margin: 0 auto 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -543,6 +543,35 @@ body {
   margin-top: 8px;
 }
 
+/* --- ANIMAL SELECT --- */
+.animal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  margin-bottom: 16px;
+}
+.animal-pick {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  padding: 12px 6px;
+  cursor: pointer;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+  text-align: center;
+  position: relative;
+}
+.animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); }
+.animal-pick.selected { border-color: var(--primary); background: #FFF0E8; }
+.animal-pick.taken { opacity: 0.6; }
+.animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
+.animal-pick .lock { font-size: 0.65rem; position: absolute; top: 4px; right: 6px; }
+
 /* --- TEACHER VIEW --- */
 .teacher-wrap {
   padding: 24px;
@@ -628,12 +657,30 @@ body {
 </head>
 <body>
 
+<!-- ANIMAL SELECT -->
+<div id="animalSelectScreen" class="start-screen hidden">
+  <h1>Wähle dein Tier</h1>
+  <p class="subtitle">Das ist dein Name für den Trainer</p>
+  <div class="animal-grid" id="animalGrid"></div>
+  <div id="animalPinSection" class="hidden">
+    <div class="quiz-card" style="max-width:360px;padding:24px;margin-top:8px">
+      <p id="animalPinLabel" style="font-size:1rem;margin-bottom:12px"></p>
+      <div class="input-row" style="justify-content:center">
+        <input type="password" id="animalPinInput" class="word-input" style="max-width:120px;font-size:1.2rem" placeholder="PIN" maxlength="4" inputmode="numeric" onkeydown="if(event.key==='Enter')confirmAnimal()">
+        <button class="check-btn" onclick="confirmAnimal()">OK</button>
+      </div>
+      <p id="animalPinError" class="hidden" style="color:var(--error);margin-top:8px;font-size:0.9rem"></p>
+    </div>
+  </div>
+</div>
+
 <!-- START -->
-<div id="startScreen" class="start-screen">
+<div id="startScreen" class="start-screen hidden">
   <h1>Wortschatz-Trainer</h1>
   <p class="subtitle">Wähle eine Serie zum Üben</p>
   <div class="series-grid" id="seriesGrid"></div>
   <p class="animal-badge" id="animalBadge"></p>
+  <button class="back-btn" id="logoutBtn" onclick="logout()" style="font-size:0.82rem;margin-top:4px">Wechseln</button>
 </div>
 
 <!-- MODE SELECT -->
@@ -776,8 +823,8 @@ const SERIES = {
   10: ["hätte", "ihm", "kennt", "denn", "vielleicht", "wenig", "lässt", "will", "stand", "Fahrräder"]
 };
 
-const ANIMALS = ['Adler','Bär','Delfin','Elefant','Fuchs','Giraffe','Hamster','Igel','Jaguar','Koala','Löwe','Maus','Nashorn','Otter','Pinguin','Rabe','Schaf','Tiger','Uhu','Wolf','Zebra','Biber','Dachs','Flamingo','Känguru'];
 const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
+const ANIMALS = Object.keys(ANIMAL_EMOJI);
 const TEACHER_PIN = '1234'; // change this before sharing the teacher URL
 
 let currentSeries = 1;
@@ -788,6 +835,8 @@ let answered = false;
 let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
+let selectedAnimal = '';
+let takenAnimals = {};
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -806,6 +855,10 @@ function displayWord(entry) {
   return entry;
 }
 
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // --- TTS ---
 function speak(text, cb) {
   window.speechSynthesis.cancel();
@@ -820,15 +873,33 @@ function speak(text, cb) {
 }
 
 // --- INIT ---
-function init() {
+async function init() {
   window.speechSynthesis.getVoices();
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
     document.getElementById('pinInput').focus();
     return;
   }
-  assignAnimal();
-  renderSeriesGrid();
+
+  const savedAnimal = localStorage.getItem('ws_animal');
+  const savedPin = localStorage.getItem('ws_pin');
+  if (savedAnimal && savedPin) {
+    try {
+      const doc = await db.collection('students').doc(savedAnimal).get();
+      if (doc.exists && doc.data().pin === savedPin) {
+        myAnimal = savedAnimal;
+        document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[savedAnimal] || '') + ' ' + savedAnimal;
+        renderSeriesGrid();
+        showScreen('startScreen');
+        return;
+      }
+    } catch(e) {
+      console.warn('Session check failed:', e);
+    }
+    localStorage.removeItem('ws_animal');
+    localStorage.removeItem('ws_pin');
+  }
+  showAnimalSelect();
 }
 
 function renderSeriesGrid() {
@@ -859,7 +930,7 @@ function buildDotHistory(seriesNum) {
   return history.slice(-5).map(h => {
     const pct = h.correct / h.total;
     const cls = pct >= 0.8 ? 'correct' : 'wrong';
-    return `<div class="stat-dot ${cls}" title="${h.correct}/${h.total}"></div>`;
+    return `<div class="stat-dot ${cls}" title="${esc(h.correct)}/${esc(h.total)}"></div>`;
   }).join('');
 }
 
@@ -884,7 +955,7 @@ function selectSeries(n) {
 }
 
 function showScreen(id) {
-  ['startScreen', 'modeScreen', 'quizScreen', 'flashScreen', 'resultsScreen', 'teacherLoginScreen', 'teacherScreen'].forEach(s => {
+  ['animalSelectScreen', 'startScreen', 'modeScreen', 'quizScreen', 'flashScreen', 'resultsScreen', 'teacherLoginScreen', 'teacherScreen'].forEach(s => {
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -1036,7 +1107,7 @@ function showResults() {
   if (wrong.length > 0) {
     mistakesEl.classList.remove('hidden');
     mistakesEl.innerHTML = '<h4>Diese Wörter nochmal anschauen:</h4><ul>' +
-      wrong.map(r => `<li><span class="typed">${r.typed}</span> → <span class="correct-word">${displayWord(r.entry)}</span></li>`).join('') +
+      wrong.map(r => `<li><span class="typed">${esc(r.typed)}</span> → <span class="correct-word">${esc(displayWord(r.entry))}</span></li>`).join('') +
       '</ul>';
     document.getElementById('retryWrongBtn').classList.remove('hidden');
   } else {
@@ -1115,14 +1186,101 @@ function launchConfetti() {
 }
 
 // --- ANIMAL IDENTITY ---
-function assignAnimal() {
-  let animal = localStorage.getItem('ws_animal');
-  if (!animal) {
-    animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-    localStorage.setItem('ws_animal', animal);
+async function showAnimalSelect() {
+  try {
+    const snapshot = await db.collection('students').get();
+    takenAnimals = {};
+    snapshot.forEach(doc => { takenAnimals[doc.id] = true; });
+  } catch(e) {
+    console.warn('Could not fetch students:', e);
   }
+  renderAnimalGrid();
+  showScreen('animalSelectScreen');
+}
+
+function renderAnimalGrid() {
+  const grid = document.getElementById('animalGrid');
+  grid.innerHTML = '';
+  document.getElementById('animalPinSection').classList.add('hidden');
+  ANIMALS.forEach(animal => {
+    const btn = document.createElement('button');
+    const taken = takenAnimals[animal];
+    btn.className = 'animal-pick' + (taken ? ' taken' : '') + (animal === selectedAnimal ? ' selected' : '');
+    btn.innerHTML = `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}${taken ? '<span class="lock">🔒</span>' : ''}`;
+    btn.onclick = () => pickAnimal(animal);
+    grid.appendChild(btn);
+  });
+}
+
+function pickAnimal(animal) {
+  selectedAnimal = animal;
+  renderAnimalGrid();
+
+  const section = document.getElementById('animalPinSection');
+  const label = document.getElementById('animalPinLabel');
+  const input = document.getElementById('animalPinInput');
+  const error = document.getElementById('animalPinError');
+
+  section.classList.remove('hidden');
+  error.classList.add('hidden');
+  input.value = '';
+
+  if (takenAnimals[animal]) {
+    label.innerHTML = `${ANIMAL_EMOJI[animal]} <strong>${esc(animal)}</strong> — PIN eingeben:`;
+  } else {
+    label.innerHTML = `${ANIMAL_EMOJI[animal]} <strong>${esc(animal)}</strong> — erstelle einen PIN (4 Zeichen):`;
+  }
+  input.focus();
+}
+
+async function confirmAnimal() {
+  const pin = document.getElementById('animalPinInput').value.trim();
+  const error = document.getElementById('animalPinError');
+
+  if (pin.length < 4) {
+    error.textContent = 'PIN muss mindestens 4 Zeichen haben.';
+    error.classList.remove('hidden');
+    return;
+  }
+
+  if (takenAnimals[selectedAnimal]) {
+    try {
+      const doc = await db.collection('students').doc(selectedAnimal).get();
+      if (doc.exists && doc.data().pin === pin) {
+        loginAs(selectedAnimal, pin);
+      } else {
+        error.textContent = 'Falscher PIN.';
+        error.classList.remove('hidden');
+      }
+    } catch(e) {
+      error.textContent = 'Fehler: ' + e.message;
+      error.classList.remove('hidden');
+    }
+  } else {
+    try {
+      await db.collection('students').doc(selectedAnimal).set({ pin, created: Date.now() });
+      loginAs(selectedAnimal, pin);
+    } catch(e) {
+      error.textContent = 'Fehler: ' + e.message;
+      error.classList.remove('hidden');
+    }
+  }
+}
+
+function loginAs(animal, pin) {
+  localStorage.setItem('ws_animal', animal);
+  localStorage.setItem('ws_pin', pin);
   myAnimal = animal;
   document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
+  renderSeriesGrid();
+  showScreen('startScreen');
+}
+
+function logout() {
+  localStorage.removeItem('ws_animal');
+  localStorage.removeItem('ws_pin');
+  myAnimal = '';
+  showAnimalSelect();
 }
 
 // --- FIREBASE WRITE ---
@@ -1217,9 +1375,11 @@ function renderTeacherGrid(data) {
         cell.innerHTML = '<span class="cell-none">—</span>';
       } else {
         const last = attempts[attempts.length - 1];
-        const pct = last.correct / last.total;
+        const c = Number(last.correct) || 0;
+        const t = Number(last.total) || 1;
+        const pct = c / t;
         const cls = pct >= 0.8 ? 'cell-done' : pct >= 0.5 ? 'cell-mid' : 'cell-poor';
-        cell.innerHTML = `<span class="${cls}">${last.correct}/${last.total}</span><span class="attempt-count">${attempts.length}×</span>`;
+        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${attempts.length}×</span>`;
       }
     });
   });
