@@ -901,10 +901,15 @@ function speak(text, cb) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'de-CH';
-  u.rate = 0.85;
+  u.rate = 0.82;
   const voices = window.speechSynthesis.getVoices();
-  const de = voices.find(v => v.lang.startsWith('de'));
-  if (de) u.voice = de;
+  // Prefer high-quality voices: Google > network voices > any de voice
+  const deVoices = voices.filter(v => v.lang.startsWith('de'));
+  const picked = deVoices.find(v => v.name.includes('Google')) ||
+                 deVoices.find(v => !v.localService) ||
+                 deVoices.find(v => v.lang === 'de-CH') ||
+                 deVoices[0];
+  if (picked) u.voice = picked;
   if (cb) u.onend = cb;
   window.speechSynthesis.speak(u);
 }
@@ -1401,9 +1406,9 @@ function renderTeacherGrid(teacherData) {
           ? `<span class="cell-none" title="Nur Karteikarten">🃏 ${fc}×</span>`
           : '<span class="cell-none">—</span>';
       } else {
-        const last = d.quizzes[d.quizzes.length - 1];
-        const c = Number(last.correct) || 0;
-        const t = Number(last.total) || 1;
+        const best = d.quizzes.reduce((a, b) => (b.correct || 0) > (a.correct || 0) ? b : a);
+        const c = Number(best.correct) || 0;
+        const t = Number(best.total) || 1;
         const pct = c / t;
         const cls = pct >= 0.8 ? 'cell-done' : pct >= 0.5 ? 'cell-mid' : 'cell-poor';
 
