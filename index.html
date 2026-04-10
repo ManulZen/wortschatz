@@ -629,6 +629,25 @@ body {
 .cell-poor { color: var(--error); font-weight: 700; }
 .cell-none { color: #CCC; }
 .attempt-count { display: block; font-size: 0.72rem; color: var(--text-light); }
+
+/* --- STUDENT DETAIL OVERLAY --- */
+.student-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.student-panel { background: var(--card); border-radius: 24px; box-shadow: var(--shadow-lg); max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 32px 24px; position: relative; }
+.student-panel h2 { font-family: 'Fredoka', sans-serif; color: var(--primary); font-size: 1.6rem; margin-bottom: 4px; }
+.student-panel h3 { font-family: 'Fredoka', sans-serif; font-size: 1rem; color: var(--text); margin: 16px 0 8px; }
+.sp-close { position: absolute; top: 12px; right: 16px; border: none; background: none; font-size: 1.4rem; cursor: pointer; color: var(--text-light); }
+.sp-summary { font-size: 0.85rem; color: var(--text-light); margin-bottom: 16px; }
+.sp-series { background: var(--bg); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+.sp-series-head { font-family: 'Fredoka', sans-serif; font-weight: 700; color: var(--primary); font-size: 0.95rem; margin-bottom: 6px; }
+.sp-attempts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.sp-attempt { font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+.sp-attempt.good { background: var(--success-bg); color: var(--success); }
+.sp-attempt.mid { background: #FFF3E0; color: #E67E22; }
+.sp-attempt.poor { background: var(--error-bg); color: var(--error); }
+.sp-flash { font-size: 0.8rem; color: var(--text-light); }
+.sp-mistakes { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-mistake-tag { font-size: 0.78rem; padding: 3px 8px; border-radius: 8px; background: var(--error-bg); color: var(--error); font-weight: 600; }
+
 .series-manage-item {
   display: flex;
   align-items: center;
@@ -821,6 +840,7 @@ body {
 </div>
 
 <div class="confetti-container" id="confetti"></div>
+<div id="studentOverlay" class="student-overlay hidden" onclick="if(event.target===this)closeStudentDetail()"></div>
 
 <script>
 // --- FIREBASE ---
@@ -1300,6 +1320,10 @@ async function syncFromFirestore() {
 function logout() {
   localStorage.removeItem('ws_animal');
   localStorage.removeItem('ws_pin');
+  Object.keys(SERIES).forEach(k => {
+    localStorage.removeItem('ws_best_' + k);
+    localStorage.removeItem('ws_history_' + k);
+  });
   myAnimal = '';
   showAnimalSelect();
 }
@@ -1396,6 +1420,8 @@ function renderTeacherGrid(teacherData) {
     const nameCell = row.insertCell();
     nameCell.className = 'animal-col';
     nameCell.textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
+    nameCell.style.cursor = 'pointer';
+    nameCell.onclick = () => showStudentDetail(animal, teacherData[animal]);
 
     seriesKeys.forEach(s => {
       const cell = row.insertCell();
@@ -1455,6 +1481,67 @@ async function deleteAnimalData(animal) {
   }
 }
 
+// --- STUDENT DETAIL ---
+function showStudentDetail(animal, data) {
+  const overlay = document.getElementById('studentOverlay');
+  const seriesKeys = Object.keys(data).map(Number).sort((a, b) => a - b);
+
+  // Summary stats
+  let totalQuizzes = 0, totalFlash = 0;
+  const globalMistakes = {};
+  seriesKeys.forEach(s => {
+    const d = data[s];
+    totalQuizzes += d.quizzes.length;
+    totalFlash += d.flashcards;
+    d.quizzes.forEach(q => (q.mistakes || []).forEach(w => { globalMistakes[w] = (globalMistakes[w] || 0) + 1; }));
+  });
+
+  // Per-series cards
+  const seriesHTML = seriesKeys.map(s => {
+    const d = data[s];
+    const attempts = d.quizzes.map(q => {
+      const c = Number(q.correct) || 0;
+      const t = Number(q.total) || 1;
+      const pct = c / t;
+      const cls = pct >= 0.8 ? 'good' : pct >= 0.5 ? 'mid' : 'poor';
+      return `<span class="sp-attempt ${cls}">${c}/${t}</span>`;
+    }).join('');
+
+    const seriesMistakes = {};
+    d.quizzes.forEach(q => (q.mistakes || []).forEach(w => { seriesMistakes[w] = (seriesMistakes[w] || 0) + 1; }));
+    const mistakeTags = Object.entries(seriesMistakes).sort((a, b) => b[1] - a[1])
+      .map(([w, n]) => `<span class="sp-mistake-tag">${esc(w)}${n > 1 ? ' ' + n + '\u00d7' : ''}</span>`).join('');
+
+    const flash = d.flashcards > 0 ? `<div class="sp-flash">\ud83c\udccf ${d.flashcards} Karteikarten</div>` : '';
+
+    return `<div class="sp-series">
+      <div class="sp-series-head">Serie ${s}</div>
+      ${attempts ? '<div class="sp-attempts">' + attempts + '</div>' : ''}
+      ${mistakeTags ? '<div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
+      ${flash}
+    </div>`;
+  }).join('');
+
+  // Global mistakes
+  const topMistakes = Object.entries(globalMistakes).sort((a, b) => b[1] - a[1]);
+  const globalHTML = topMistakes.length > 0
+    ? `<h3>H\u00e4ufigste Fehler</h3><div class="sp-mistakes">${topMistakes.map(([w, n]) => `<span class="sp-mistake-tag">${esc(w)} ${n}\u00d7</span>`).join('')}</div>`
+    : '';
+
+  overlay.innerHTML = `<div class="student-panel">
+    <button class="sp-close" onclick="closeStudentDetail()">\u2715</button>
+    <h2>${ANIMAL_EMOJI[animal] || ''} ${esc(animal)}</h2>
+    <div class="sp-summary">${totalQuizzes} Diktat${totalQuizzes !== 1 ? 'e' : ''} \u00b7 ${totalFlash} Karteikarten \u00b7 ${seriesKeys.length} Serien</div>
+    ${seriesHTML}
+    ${globalHTML}
+  </div>`;
+  overlay.classList.remove('hidden');
+}
+
+function closeStudentDetail() {
+  document.getElementById('studentOverlay').classList.add('hidden');
+}
+
 // --- SERIES MANAGEMENT ---
 async function loadSeries() {
   try {
@@ -1467,20 +1554,19 @@ async function loadSeries() {
         SERIES[num] = d.words;
       }
     });
-    // Seed any missing defaults (one-time migration)
+    // Seed any missing defaults (one-time migration, individual writes)
     const missing = Object.keys(DEFAULT_SERIES).filter(k => !(k in SERIES));
     if (missing.length > 0) {
+      console.log('Seeding missing series:', missing.join(', '));
       missing.forEach(num => {
         SERIES[num] = JSON.parse(JSON.stringify(DEFAULT_SERIES[num]));
       });
-      try {
-        const batch = db.batch();
-        missing.forEach(num => {
-          batch.set(db.collection('custom_series').doc(String(num)), { words: DEFAULT_SERIES[num], created: Date.now() });
-        });
-        await batch.commit();
-      } catch(e) {
-        console.warn('Could not seed missing series:', e);
+      for (const num of missing) {
+        try {
+          await db.collection('custom_series').doc(String(num)).set({ words: DEFAULT_SERIES[num], created: Date.now() });
+        } catch(e) {
+          console.warn('Failed to seed series ' + num + ':', e.message);
+        }
       }
     }
   } catch(e) {
@@ -1601,6 +1687,7 @@ function editSeries(num) {
 
 // Enter key support
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeStudentDetail();
   if (e.key === 'Enter') {
     if (!document.getElementById('quizScreen').classList.contains('hidden')) {
       if (answered) nextWord();
