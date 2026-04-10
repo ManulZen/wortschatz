@@ -1454,10 +1454,6 @@ async function deleteAnimalData(animal) {
 async function loadSeries() {
   try {
     const snapshot = await db.collection('custom_series').get();
-    if (snapshot.empty) {
-      await seedDefaultSeries();
-      return;
-    }
     SERIES = {};
     snapshot.forEach(doc => {
       const d = doc.data();
@@ -1466,23 +1462,26 @@ async function loadSeries() {
         SERIES[num] = d.words;
       }
     });
+    // Seed any missing defaults (one-time migration)
+    const missing = Object.keys(DEFAULT_SERIES).filter(k => !(k in SERIES));
+    if (missing.length > 0) {
+      missing.forEach(num => {
+        SERIES[num] = JSON.parse(JSON.stringify(DEFAULT_SERIES[num]));
+      });
+      try {
+        const batch = db.batch();
+        missing.forEach(num => {
+          batch.set(db.collection('custom_series').doc(String(num)), { words: DEFAULT_SERIES[num], created: Date.now() });
+        });
+        await batch.commit();
+      } catch(e) {
+        console.warn('Could not seed missing series:', e);
+      }
+    }
   } catch(e) {
     console.warn('Firestore unavailable, using defaults:', e);
     SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
   }
-}
-
-async function seedDefaultSeries() {
-  const batch = db.batch();
-  Object.entries(DEFAULT_SERIES).forEach(([num, words]) => {
-    batch.set(db.collection('custom_series').doc(String(num)), { words, created: Date.now() });
-  });
-  try {
-    await batch.commit();
-  } catch(e) {
-    console.warn('Could not seed series:', e);
-  }
-  SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
 }
 
 function parseSeriesInput(str) {
@@ -1579,7 +1578,7 @@ function editSeries(num) {
     const newWords = parseSeriesInput(input.value);
     if (newWords.length < 2) { alert('Mindestens 2 Wörter.'); return; }
     try {
-      await db.collection('custom_series').doc(String(num)).set({ words: newWords });
+      await db.collection('custom_series').doc(String(num)).set({ words: newWords }, { merge: true });
       SERIES[num] = newWords;
       renderSeriesManager();
     } catch(e) { alert('Fehler: ' + e.message); }

@@ -35,7 +35,7 @@ index.html
     ├── Results     showResults() — saves to Firestore, syncs back to localStorage
     ├── Firebase    saveToFirestore(data), syncFromFirestore() — Firestore is source of truth
     ├── Teacher     checkPin(), loadTeacherDashboard(), renderTeacherGrid(), deleteAnimalData()
-    ├── Series Mgmt loadSeries(), seedDefaultSeries(), addSeries(), deleteSeries(), editSeries(), renderSeriesManager()
+    ├── Series Mgmt loadSeries(), addSeries(), deleteSeries(), editSeries(), renderSeriesManager()
     └── Utils       shuffle(), launchConfetti(), buildDotHistory(), esc(), sha256(), parseSeriesInput()
 ```
 

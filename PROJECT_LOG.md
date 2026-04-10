@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-04-10 — Session 7: Unified series in Firestore
+
+**What changed:**
+- All series (including original 10) now live in Firestore `custom_series` collection
+- `DEFAULT_SERIES` in code is seed data only — written to Firestore on first run or when missing
+- `BUILTIN_SERIES` removed — no more special cases, all series are equal
+- Teacher can edit/delete any series (not just custom ones)
+- `loadSeries()` auto-migrates: on load, seeds any `DEFAULT_SERIES` entries missing from Firestore
+- Migration is safe: if Firestore write fails, already-loaded series stay in memory
+- `editSeries` uses `{merge: true}` to preserve `created` timestamp
+
+---
+
 ## 2026-04-10 — Session 6: Architecture cleanup
 
 **Problems found and fixed:**
