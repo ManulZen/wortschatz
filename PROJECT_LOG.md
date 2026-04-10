@@ -4,6 +4,41 @@ Running log of decisions, issues, and changes. Newest entries first.
 
 ---
 
+## 2026-04-10 — Session 5: Verification & refactor pass
+
+**What was done:**
+- Removed dead `teacherDocs` variable (populated but never read)
+- Fixed XSS in `renderSeriesGrid` — custom series preview from Firestore now wrapped in `esc()`
+- Fixed XSS in `checkAnswer` — correction display for custom series entries now wrapped in `esc()`
+- Replaced fragile `isCustom = num > 10` with `BUILTIN_SERIES = new Set(Object.keys(SERIES).map(Number))`
+- Fixed `renderSeriesGrid` key order — now `.map(Number).sort((a, b) => a - b)` for guaranteed numeric sort
+- Merged `saveResult()` + `saveFlashcardComplete()` into single `saveToFirestore(data)` function
+
+**Result:** File reduced from 1559 → 1535 lines. All innerHTML assignments verified safe.
+
+---
+
+## 2026-04-10 — Session 4: Features + hashed teacher PIN
+
+**What was built:**
+- Per-word mistake tracking: quiz results now include `mistakes` array, teacher grid shows mistake details on click
+- Flashcard completion tracking: `saveToFirestore({mode:'flashcard'})` writes completion to Firestore
+- Student data reset: teacher can delete all results for a specific animal via trash icon
+- Custom series management: teacher can add/delete custom word series, stored in Firestore `custom_series` collection
+- Hashed teacher PIN: `TEACHER_PIN` replaced with `TEACHER_HASH` (SHA-256 via Web Crypto API), password: `Neznamba13.123`
+
+**Firestore collections now:**
+- `results` — quiz/flashcard results `{animal, series, correct, total, mistakes, mode, ts}`
+- `students` — animal registrations `{pin, created}`, doc ID = animal name
+- `custom_series` — teacher-created series `{words: [...]}`, doc ID = series number
+
+**Decisions:**
+- `BUILTIN_SERIES` Set tracks original series numbers — custom detection no longer relies on `num > 10`
+- `saveToFirestore(data)` is single unified write function — merges base fields `{animal, series, ts}` with caller data
+- SHA-256 hash compared in constant-time-ish manner (good enough for classroom)
+
+---
+
 ## 2026-04-10 — Session 3: Animal PIN auth system
 
 **What was built:**

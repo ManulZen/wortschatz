@@ -629,6 +629,22 @@ body {
 .cell-poor { color: var(--error); font-weight: 700; }
 .cell-none { color: #CCC; }
 .attempt-count { display: block; font-size: 0.72rem; color: var(--text-light); }
+.series-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+.series-manage-item .snum { font-family: 'Fredoka', sans-serif; font-weight: 700; color: var(--primary); min-width: 40px; }
+.series-manage-item .words { flex: 1; color: var(--text-light); }
+.series-manage-item .custom-badge { font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; }
+.series-del-btn { border: none; background: none; cursor: pointer; font-size: 1rem; opacity: 0.4; }
+.series-del-btn:hover { opacity: 1; }
 
 /* --- CONFETTI --- */
 .confetti-container {
@@ -789,6 +805,18 @@ body {
     <p class="teacher-meta" id="teacherMeta"></p>
     <button class="refresh-btn" onclick="loadTeacherDashboard()">↻ Aktualisieren</button>
     <div id="teacherGrid"><p style="color:var(--text-light)">Lade Daten…</p></div>
+    <div style="margin-top:32px">
+      <h2 style="font-family:'Fredoka',sans-serif;color:var(--primary);font-size:1.4rem;margin-bottom:12px">Serien verwalten</h2>
+      <div id="seriesManager"></div>
+      <div class="quiz-card" style="max-width:600px;padding:20px;margin-top:12px;text-align:left">
+        <p style="font-weight:700;margin-bottom:8px">Neue Serie hinzufügen</p>
+        <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:10px">Wörter mit Komma getrennt. Alternativen mit / (z.B. aussen/draussen)</p>
+        <div class="input-row">
+          <input type="text" id="newSeriesInput" class="word-input" style="font-size:0.95rem;text-align:left;font-weight:400" placeholder="Wort1, Wort2, alt1/alt2, Wort4, …">
+        </div>
+        <button class="check-btn" style="margin-top:8px" onclick="addCustomSeries()">+ Serie hinzufügen</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -830,7 +858,8 @@ const ANIMAL_PINS = {
   'Rabe':'4172','Schaf':'9635','Tiger':'2089','Uhu':'5314','Wolf':'7806',
   'Zebra':'1493','Biber':'6750','Dachs':'3287','Flamingo':'8914','Känguru':'4563'
 };
-const TEACHER_PIN = '1234';
+const TEACHER_HASH = 'a9220d4f4bd189a176fd0a961d1211b0f702a1a0f40c5546429c82aa173f53eb';
+const BUILTIN_SERIES = new Set(Object.keys(SERIES).map(Number));
 
 let currentSeries = 1;
 let currentIndex = 0;
@@ -841,6 +870,7 @@ let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
 let selectedAnimal = '';
+let teacherData = {};
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -863,6 +893,11 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // --- TTS ---
 function speak(text, cb) {
   window.speechSynthesis.cancel();
@@ -877,8 +912,10 @@ function speak(text, cb) {
 }
 
 // --- INIT ---
-function init() {
+async function init() {
   window.speechSynthesis.getVoices();
+  await loadCustomSeries();
+
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
     document.getElementById('pinInput').focus();
@@ -899,8 +936,7 @@ function init() {
 function renderSeriesGrid() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
-  Object.keys(SERIES).forEach(key => {
-    const i = parseInt(key);
+  Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(i => {
     const btn = document.createElement('button');
     btn.className = 'series-btn';
     const best = localStorage.getItem('ws_best_' + i);
@@ -908,7 +944,7 @@ function renderSeriesGrid() {
     if (best !== null && parseInt(best) >= Math.ceil(total * 0.8)) {
       btn.classList.add('completed');
     }
-    const preview = SERIES[i].slice(0, 3).map(getCanonical).join(', ');
+    const preview = esc(SERIES[i].slice(0, 3).map(getCanonical).join(', '));
     btn.innerHTML = `Serie ${i}<span class="label">${preview}…</span>`;
     if (best !== null) {
       btn.innerHTML += `<div class="stats-bar">${buildDotHistory(i)}</div>`;
@@ -1024,7 +1060,7 @@ function checkAnswer() {
     fb.classList.add('wrong');
     fb.innerHTML = '✗ Leider falsch';
     corr.classList.remove('hidden');
-    corr.innerHTML = `Richtig: <span style="color:var(--success);font-size:1.3rem;font-weight:800">${displayWord(entry)}</span>`;
+    corr.innerHTML = `Richtig: <span style="color:var(--success);font-size:1.3rem;font-weight:800">${esc(displayWord(entry))}</span>`;
   }
 
   input.disabled = true;
@@ -1065,10 +1101,11 @@ function showResults() {
   if (history.length > 10) history.shift();
   localStorage.setItem(histKey, JSON.stringify(history));
 
-  saveResult(correctCount, total);
+  const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
+  const mistakeWords = wrongEntries.map(getCanonical);
+  saveToFirestore({ correct: correctCount, total, mistakes: mistakeWords, mode: 'quiz' });
 
   // Save wrong words for retry
-  const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
   lastWrongWords[currentSeries] = wrongEntries;
 
   const best = parseInt(localStorage.getItem('ws_best_' + currentSeries));
@@ -1141,6 +1178,7 @@ function flashNext() {
     flashIndex++;
     loadFlashcard();
   } else {
+    saveToFirestore({ mode: 'flashcard' });
     goHome();
   }
 }
@@ -1245,24 +1283,19 @@ function logout() {
 }
 
 // --- FIREBASE WRITE ---
-async function saveResult(correct, total) {
+async function saveToFirestore(data) {
   try {
-    await db.collection('results').add({
-      animal: myAnimal,
-      series: currentSeries,
-      correct,
-      total,
-      ts: Date.now()
-    });
+    await db.collection('results').add(Object.assign({ animal: myAnimal, series: currentSeries, ts: Date.now() }, data));
   } catch(e) {
-    console.warn('Could not save result:', e);
+    console.warn('Could not save to Firestore:', e);
   }
 }
 
 // --- TEACHER VIEW ---
-function checkPin() {
+async function checkPin() {
   const input = document.getElementById('pinInput');
-  if (input.value === TEACHER_PIN) {
+  const hash = await sha256(input.value);
+  if (hash === TEACHER_HASH) {
     showScreen('teacherScreen');
     loadTeacherDashboard();
   } else {
@@ -1280,26 +1313,36 @@ async function loadTeacherDashboard() {
     snapshot.forEach(doc => docs.push(doc.data()));
     docs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-    const data = {};
+    teacherData = {};
     docs.forEach(r => {
-      if (!data[r.animal]) data[r.animal] = {};
-      if (!data[r.animal][r.series]) data[r.animal][r.series] = [];
-      data[r.animal][r.series].push({ correct: r.correct, total: r.total });
+      if (!r.animal) return;
+      if (!teacherData[r.animal]) teacherData[r.animal] = {};
+      const s = r.series;
+      if (!s) return;
+      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], flashcards: 0 };
+      if (r.mode === 'flashcard') {
+        teacherData[r.animal][s].flashcards++;
+      } else {
+        teacherData[r.animal][s].quizzes.push({ correct: r.correct, total: r.total, mistakes: r.mistakes || [] });
+      }
     });
 
-    renderTeacherGrid(data);
+    renderTeacherGrid();
+    renderSeriesManager();
+    const quizCount = docs.filter(d => d.mode !== 'flashcard').length;
+    const flashCount = docs.filter(d => d.mode === 'flashcard').length;
     const time = new Date().toLocaleTimeString('de-CH');
     document.getElementById('teacherMeta').textContent =
-      `${Object.keys(data).length} Schüler · ${docs.length} Versuche insgesamt · Stand: ${time}`;
+      `${Object.keys(teacherData).length} Schüler · ${quizCount} Diktate · ${flashCount} Karteikarten · Stand: ${time}`;
   } catch(e) {
     document.getElementById('teacherGrid').innerHTML =
-      `<p style="color:var(--error)">Fehler beim Laden: ${e.message}</p>`;
+      `<p style="color:var(--error)">Fehler beim Laden: ${esc(e.message)}</p>`;
   }
 }
 
-function renderTeacherGrid(data) {
+function renderTeacherGrid() {
   const seriesKeys = Object.keys(SERIES).map(Number);
-  const animals = Object.keys(data).sort();
+  const animals = Object.keys(teacherData).sort();
   const grid = document.getElementById('teacherGrid');
 
   if (animals.length === 0) {
@@ -1321,6 +1364,9 @@ function renderTeacherGrid(data) {
     th.textContent = 'S' + s;
     hr.appendChild(th);
   });
+  const thAction = document.createElement('th');
+  thAction.textContent = '';
+  hr.appendChild(thAction);
 
   const tbody = table.createTBody();
   animals.forEach(animal => {
@@ -1331,22 +1377,144 @@ function renderTeacherGrid(data) {
 
     seriesKeys.forEach(s => {
       const cell = row.insertCell();
-      const attempts = data[animal][s];
-      if (!attempts) {
-        cell.innerHTML = '<span class="cell-none">—</span>';
+      const d = teacherData[animal][s];
+      if (!d || d.quizzes.length === 0) {
+        let fc = d ? d.flashcards : 0;
+        cell.innerHTML = fc > 0
+          ? `<span class="cell-none" title="Nur Karteikarten">🃏 ${fc}×</span>`
+          : '<span class="cell-none">—</span>';
       } else {
-        const last = attempts[attempts.length - 1];
+        const last = d.quizzes[d.quizzes.length - 1];
         const c = Number(last.correct) || 0;
         const t = Number(last.total) || 1;
         const pct = c / t;
         const cls = pct >= 0.8 ? 'cell-done' : pct >= 0.5 ? 'cell-mid' : 'cell-poor';
-        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${attempts.length}×</span>`;
+
+        const allMistakes = d.quizzes.flatMap(q => q.mistakes || []);
+        const freq = {};
+        allMistakes.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+        const mistakeList = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+
+        let tooltip = `${d.quizzes.length} Diktat(e)`;
+        if (d.flashcards > 0) tooltip += `, ${d.flashcards} Karteikarten`;
+        if (mistakeList.length > 0) tooltip += '\nHäufige Fehler: ' + mistakeList.slice(0, 5).map(([w, n]) => `${w} (${n}×)`).join(', ');
+
+        cell.title = tooltip;
+        cell.style.cursor = mistakeList.length > 0 ? 'help' : 'default';
+        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${d.quizzes.length}×${d.flashcards > 0 ? ' 🃏' + d.flashcards : ''}</span>`;
       }
     });
+
+    const actionCell = row.insertCell();
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Daten löschen für ' + animal;
+    delBtn.style.cssText = 'border:none;background:none;cursor:pointer;font-size:1rem;opacity:0.4;';
+    delBtn.onmouseenter = () => delBtn.style.opacity = '1';
+    delBtn.onmouseleave = () => delBtn.style.opacity = '0.4';
+    delBtn.onclick = () => deleteAnimalData(animal);
+    actionCell.appendChild(delBtn);
   });
 
   grid.innerHTML = '';
   grid.appendChild(table);
+}
+
+async function deleteAnimalData(animal) {
+  if (!confirm(`Alle Daten von ${animal} löschen?`)) return;
+  try {
+    const snapshot = await db.collection('results').where('animal', '==', animal).get();
+    const batch = db.batch();
+    snapshot.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    loadTeacherDashboard();
+  } catch(e) {
+    alert('Fehler: ' + e.message);
+  }
+}
+
+// --- CUSTOM SERIES ---
+async function loadCustomSeries() {
+  try {
+    const snapshot = await db.collection('custom_series').get();
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      if (d.num && d.words && Array.isArray(d.words)) {
+        SERIES[d.num] = d.words;
+      }
+    });
+  } catch(e) {
+    console.warn('Could not load custom series:', e);
+  }
+}
+
+function parseSeriesInput(str) {
+  return str.split(',').map(w => {
+    w = w.trim();
+    if (!w) return null;
+    if (w.includes('/')) {
+      const alts = w.split('/').map(a => a.trim()).filter(Boolean);
+      return alts.length > 1 ? alts : alts[0];
+    }
+    return w;
+  }).filter(Boolean);
+}
+
+async function addCustomSeries() {
+  const input = document.getElementById('newSeriesInput');
+  const words = parseSeriesInput(input.value);
+  if (words.length < 2) {
+    alert('Mindestens 2 Wörter eingeben.');
+    return;
+  }
+
+  const existingKeys = Object.keys(SERIES).map(Number);
+  const nextNum = existingKeys.length > 0 ? Math.max(...existingKeys) + 1 : 1;
+
+  try {
+    await db.collection('custom_series').doc(String(nextNum)).set({
+      num: nextNum,
+      words,
+      created: Date.now()
+    });
+    SERIES[nextNum] = words;
+    input.value = '';
+    renderSeriesManager();
+  } catch(e) {
+    alert('Fehler: ' + e.message);
+  }
+}
+
+async function deleteCustomSeries(num) {
+  if (!confirm(`Serie ${num} löschen?`)) return;
+  try {
+    await db.collection('custom_series').doc(String(num)).delete();
+    delete SERIES[num];
+    renderSeriesManager();
+  } catch(e) {
+    alert('Fehler: ' + e.message);
+  }
+}
+
+function renderSeriesManager() {
+  const container = document.getElementById('seriesManager');
+  container.innerHTML = '';
+  Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(num => {
+    const words = SERIES[num];
+    const isCustom = !BUILTIN_SERIES.has(num);
+    const div = document.createElement('div');
+    div.className = 'series-manage-item';
+    div.innerHTML = `<span class="snum">S${num}</span><span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})</span>${isCustom ? '<span class="custom-badge">Eigene</span>' : ''}`;
+    if (isCustom) {
+      const del = document.createElement('button');
+      del.className = 'series-del-btn';
+      del.textContent = '🗑';
+      del.title = 'Serie ' + num + ' löschen';
+      del.onclick = () => deleteCustomSeries(num);
+      div.appendChild(del);
+    }
+    container.appendChild(div);
+  });
 }
 
 // Enter key support

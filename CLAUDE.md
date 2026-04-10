@@ -32,8 +32,9 @@ index.html
     ├── Flash       startFlashcards(), loadFlashcard(), flipCard()
     ├── Results     showResults() — saves to localStorage + Firestore
     ├── Firebase    saveResult() — writes {animal, series, correct, total, ts} to Firestore
-    ├── Teacher     checkPin(), loadTeacherDashboard(), renderTeacherGrid()
-    └── Utils       shuffle(), launchConfetti(), buildDotHistory()
+    ├── Teacher     checkPin(), loadTeacherDashboard(), renderTeacherGrid(), deleteAnimalData()
+    ├── Series Mgmt loadCustomSeries(), addCustomSeries(), deleteCustomSeries(), renderSeriesManager()
+    └── Utils       shuffle(), launchConfetti(), buildDotHistory(), esc(), sha256()
 ```
 
 ## Data Format
@@ -50,8 +51,8 @@ Adding a new series: add a new key to `SERIES`. The UI auto-generates from `Obje
 ## Firebase
 
 - Project: `wortschatz-2046c`
-- Collection: `results` — one doc per completed quiz `{animal, series, correct, total, ts}`
-- Collection: `students` — one doc per animal `{pin, created}` — doc ID is the animal name
+- Collection: `results` — one doc per completed quiz `{animal, series, correct, total, ts, mistakes[], mode}`
+- Collection: `custom_series` — teacher-created series `{num, words[], created}` — doc ID is the series number
 - Firestore rules: currently wide open (`allow read, write: if true`) — acceptable for single-class test, must be locked down before wider use
 - Config is embedded in the `<script>` block (API key is not secret for Firebase client SDK)
 
@@ -66,9 +67,9 @@ Adding a new series: add a new key to `SERIES`. The UI auto-generates from `Obje
 ## Teacher View
 
 - URL: `?teacher` query param
-- PIN-protected (default `1234`, stored as `TEACHER_PIN` constant)
+- PIN-protected (default `1234`, stored as SHA-256 hash in `TEACHER_HASH` constant)
 - Shows grid: animals × series, last score + attempt count, color-coded
-- The PIN is in the client JS — it's not real security, just a speed bump
+- PIN is hashed — not readable from source, but still client-side (not real auth)
 
 ## Key Rules
 
@@ -92,6 +93,10 @@ Adding a new series: add a new key to `SERIES`. The UI auto-generates from `Obje
 | 2026-04-10 | listen-btn centered by text-align (wrong for display:flex) | Added margin: 0 auto |
 | 2026-04-10 | CLAUDE.md/PROJECT_LOG.md said "no backend" | Updated to reflect Firebase + Vercel |
 | 2026-04-10 | Students could impersonate each other (no auth) | Added animal PIN system: pick animal + 4-char PIN, stored in Firestore `students` collection |
+| 2026-04-10 | Teacher couldn't see which words students got wrong | saveResult now includes mistakes array, teacher grid shows tooltip with frequent errors |
+| 2026-04-10 | Flashcard sessions not tracked | saveFlashcardComplete writes to Firestore on flashcard finish |
+| 2026-04-10 | No way to reset student data | Teacher can delete all data for a student via trash icon |
+| 2026-04-10 | No way to add series without editing code | Teacher dashboard has series manager — add/delete custom series stored in Firestore |
 
 ## What to Update Here
 
