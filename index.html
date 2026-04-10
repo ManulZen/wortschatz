@@ -814,7 +814,7 @@ body {
         <div class="input-row">
           <input type="text" id="newSeriesInput" class="word-input" style="font-size:0.95rem;text-align:left;font-weight:400" placeholder="Wort1, Wort2, alt1/alt2, Wort4, …">
         </div>
-        <button class="check-btn" style="margin-top:8px" onclick="addCustomSeries()">+ Serie hinzufügen</button>
+        <button class="check-btn" style="margin-top:8px" onclick="addSeries()">+ Serie hinzufügen</button>
       </div>
     </div>
   </div>
@@ -834,9 +834,8 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-// Words can be a string (single accepted answer) or an array (multiple accepted answers).
-// For arrays, any entry is accepted. The first entry is spoken via TTS.
-const SERIES = {
+// Default series — used to seed Firestore on first run and as offline fallback.
+const DEFAULT_SERIES = {
   1:  ["gross", "bald", "wieder", "dann", "fahren", "wir", "zurück", "fertig", "kommt", "hat"],
   2:  ["fallen", "liess", "einmal", "plötzlich", "fleissig", "sehen", "morgen", "nie", "Strasse", "Vater"],
   3:  ["hält", "sehr", "weiss", "wäre", "Vogel", "bekommt", "ziemlich", "sitzt", "gibt", "steht"],
@@ -848,6 +847,7 @@ const SERIES = {
   9:  ["stellt", "Fahrrad", "ganz", "fiel", "am Abend", "isst", "bekam", "ging", "allein", ["heran", "herein", "heraus", "hinaus", "hinein"]],
   10: ["hätte", "ihm", "kennt", "denn", "vielleicht", "wenig", "lässt", "will", "stand", "Fahrräder"]
 };
+let SERIES = {};
 
 const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
 const ANIMALS = Object.keys(ANIMAL_EMOJI);
@@ -859,7 +859,6 @@ const ANIMAL_PINS = {
   'Zebra':'1493','Biber':'6750','Dachs':'3287','Flamingo':'8914','Känguru':'4563'
 };
 const TEACHER_HASH = 'a9220d4f4bd189a176fd0a961d1211b0f702a1a0f40c5546429c82aa173f53eb';
-const BUILTIN_SERIES = new Set(Object.keys(SERIES).map(Number));
 
 let currentSeries = 1;
 let currentIndex = 0;
@@ -913,7 +912,7 @@ function speak(text, cb) {
 // --- INIT ---
 async function init() {
   window.speechSynthesis.getVoices();
-  await loadCustomSeries();
+  await loadSeries();
 
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
@@ -1451,10 +1450,15 @@ async function deleteAnimalData(animal) {
   }
 }
 
-// --- CUSTOM SERIES ---
-async function loadCustomSeries() {
+// --- SERIES MANAGEMENT ---
+async function loadSeries() {
   try {
     const snapshot = await db.collection('custom_series').get();
+    if (snapshot.empty) {
+      await seedDefaultSeries();
+      return;
+    }
+    SERIES = {};
     snapshot.forEach(doc => {
       const d = doc.data();
       const num = Number(doc.id);
@@ -1463,8 +1467,22 @@ async function loadCustomSeries() {
       }
     });
   } catch(e) {
-    console.warn('Could not load custom series:', e);
+    console.warn('Firestore unavailable, using defaults:', e);
+    SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
   }
+}
+
+async function seedDefaultSeries() {
+  const batch = db.batch();
+  Object.entries(DEFAULT_SERIES).forEach(([num, words]) => {
+    batch.set(db.collection('custom_series').doc(String(num)), { words, created: Date.now() });
+  });
+  try {
+    await batch.commit();
+  } catch(e) {
+    console.warn('Could not seed series:', e);
+  }
+  SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
 }
 
 function parseSeriesInput(str) {
@@ -1479,7 +1497,7 @@ function parseSeriesInput(str) {
   }).filter(Boolean);
 }
 
-async function addCustomSeries() {
+async function addSeries() {
   const input = document.getElementById('newSeriesInput');
   const words = parseSeriesInput(input.value);
   if (words.length < 2) {
@@ -1503,7 +1521,7 @@ async function addCustomSeries() {
   }
 }
 
-async function deleteCustomSeries(num) {
+async function deleteSeries(num) {
   if (!confirm(`Serie ${num} löschen?`)) return;
   try {
     await db.collection('custom_series').doc(String(num)).delete();
@@ -1519,29 +1537,26 @@ function renderSeriesManager() {
   container.innerHTML = '';
   Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(num => {
     const words = SERIES[num];
-    const isCustom = !BUILTIN_SERIES.has(num);
     const div = document.createElement('div');
     div.className = 'series-manage-item';
-    div.innerHTML = `<span class="snum">S${num}</span><span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})</span>${isCustom ? '<span class="custom-badge">Eigene</span>' : ''}`;
-    if (isCustom) {
-      const edit = document.createElement('button');
-      edit.className = 'series-del-btn';
-      edit.textContent = '✏️';
-      edit.title = 'Serie ' + num + ' bearbeiten';
-      edit.onclick = () => editCustomSeries(num);
-      div.appendChild(edit);
-      const del = document.createElement('button');
-      del.className = 'series-del-btn';
-      del.textContent = '🗑';
-      del.title = 'Serie ' + num + ' löschen';
-      del.onclick = () => deleteCustomSeries(num);
-      div.appendChild(del);
-    }
+    div.innerHTML = `<span class="snum">S${num}</span><span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})</span>`;
+    const edit = document.createElement('button');
+    edit.className = 'series-del-btn';
+    edit.textContent = '✏️';
+    edit.title = 'Serie ' + num + ' bearbeiten';
+    edit.onclick = () => editSeries(num);
+    div.appendChild(edit);
+    const del = document.createElement('button');
+    del.className = 'series-del-btn';
+    del.textContent = '🗑';
+    del.title = 'Serie ' + num + ' löschen';
+    del.onclick = () => deleteSeries(num);
+    div.appendChild(del);
     container.appendChild(div);
   });
 }
 
-function editCustomSeries(num) {
+function editSeries(num) {
   const container = document.getElementById('seriesManager');
   const items = container.querySelectorAll('.series-manage-item');
   const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
@@ -1564,7 +1579,7 @@ function editCustomSeries(num) {
     const newWords = parseSeriesInput(input.value);
     if (newWords.length < 2) { alert('Mindestens 2 Wörter.'); return; }
     try {
-      await db.collection('custom_series').doc(String(num)).update({ words: newWords });
+      await db.collection('custom_series').doc(String(num)).set({ words: newWords });
       SERIES[num] = newWords;
       renderSeriesManager();
     } catch(e) { alert('Fehler: ' + e.message); }
