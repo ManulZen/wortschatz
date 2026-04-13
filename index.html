@@ -569,6 +569,14 @@ body {
 .animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); }
 .animal-pick.selected { border-color: var(--primary); background: #FFF0E8; }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
+.animal-pick.locked { opacity: 0.45; cursor: not-allowed; border-color: var(--error); background: #fff0f0; }
+.animal-pick.locked:hover { transform: none; border-color: var(--error); }
+
+.locked-bar { background: #fff3f3; border: 2px solid var(--error); border-radius: 14px; padding: 14px 18px; margin-bottom: 16px; }
+.locked-bar h3 { font-family: 'Fredoka', sans-serif; color: var(--error); font-size: 1rem; margin: 0 0 10px 0; }
+.locked-bar .locked-tag { display: inline-flex; align-items: center; gap: 6px; background: white; border: 1px solid var(--error); border-radius: 20px; padding: 4px 10px 4px 12px; margin: 3px 4px; font-size: 0.85rem; font-weight: 600; }
+.locked-bar .unlock-btn { border: none; background: var(--primary); color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; cursor: pointer; line-height: 22px; padding: 0; }
+.locked-bar .unlock-btn:hover { background: var(--primary-dark); }
 
 /* --- TEACHER VIEW --- */
 .teacher-wrap {
@@ -823,6 +831,7 @@ body {
     <h1>Klassen-Übersicht</h1>
     <p class="teacher-meta" id="teacherMeta"></p>
     <button class="refresh-btn" onclick="loadTeacherDashboard()">↻ Aktualisieren</button>
+    <div id="lockedBar"></div>
     <div id="teacherGrid"><p style="color:var(--text-light)">Lade Daten…</p></div>
     <div style="margin-top:32px">
       <h2 style="font-family:'Fredoka',sans-serif;color:var(--primary);font-size:1.4rem;margin-bottom:12px">Serien verwalten</h2>
@@ -889,6 +898,7 @@ let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
 let selectedAnimal = '';
+let lockedAnimals = new Set();
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -908,7 +918,7 @@ function displayWord(entry) {
 }
 
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 async function sha256(str) {
@@ -938,6 +948,7 @@ function speak(text, cb) {
 async function init() {
   window.speechSynthesis.getVoices();
   await loadSeries();
+  await loadLocks();
 
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
@@ -1229,6 +1240,51 @@ function launchConfetti() {
   setTimeout(() => container.innerHTML = '', 4000);
 }
 
+// --- ACCOUNT LOCKING ---
+async function loadLocks() {
+  try {
+    const doc = await db.collection('app').doc('locks').get();
+    lockedAnimals = new Set(doc.exists ? Object.keys(doc.data()) : []);
+  } catch(e) {
+    console.warn('Could not load locks:', e);
+  }
+}
+
+async function lockAnimal(animal) {
+  lockedAnimals.add(animal);
+  try {
+    await db.collection('app').doc('locks').set({ [animal]: true }, { merge: true });
+  } catch(e) {
+    console.warn('Could not save lock:', e);
+  }
+}
+
+async function unlockAnimal(animal) {
+  lockedAnimals.delete(animal);
+  try {
+    const firebase_delete = firebase.firestore.FieldValue.delete();
+    await db.collection('app').doc('locks').update({ [animal]: firebase_delete });
+  } catch(e) {
+    console.warn('Could not remove lock:', e);
+  }
+}
+
+function renderLockedBar() {
+  const bar = document.getElementById('lockedBar');
+  if (!bar) return;
+  if (lockedAnimals.size === 0) { bar.innerHTML = ''; return; }
+  const tags = [...lockedAnimals].sort().map(a =>
+    `<span class="locked-tag">🔒 ${esc(a)}<button class="unlock-btn" title="Entsperren" onclick="teacherUnlock('${esc(a)}')">✓</button></span>`
+  ).join('');
+  bar.innerHTML = `<div class="locked-bar"><h3>Gesperrte Konten</h3>${tags}</div>`;
+}
+
+async function teacherUnlock(animal) {
+  await unlockAnimal(animal);
+  localStorage.removeItem('ws_fails_' + animal);
+  renderLockedBar();
+}
+
 // --- ANIMAL IDENTITY ---
 function showAnimalSelect() {
   renderAnimalGrid();
@@ -1240,10 +1296,17 @@ function renderAnimalGrid() {
   grid.innerHTML = '';
   document.getElementById('animalPinSection').classList.add('hidden');
   ANIMALS.forEach(animal => {
+    const locked = lockedAnimals.has(animal);
     const btn = document.createElement('button');
-    btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '');
-    btn.innerHTML = `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
-    btn.onclick = () => pickAnimal(animal);
+    btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '') + (locked ? ' locked' : '');
+    btn.innerHTML = locked
+      ? `<span class="emoji">🔒</span>${esc(animal)}`
+      : `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
+    if (locked) {
+      btn.disabled = true;
+    } else {
+      btn.onclick = () => pickAnimal(animal);
+    }
     grid.appendChild(btn);
   });
 }
@@ -1271,10 +1334,22 @@ function confirmAnimal() {
   if (!pin) return;
 
   if (ANIMAL_PINS[selectedAnimal] === pin) {
+    localStorage.removeItem('ws_fails_' + selectedAnimal);
     loginAs(selectedAnimal, pin);
   } else {
-    error.textContent = 'Falscher PIN.';
-    error.classList.remove('hidden');
+    const failKey = 'ws_fails_' + selectedAnimal;
+    const fails = (parseInt(localStorage.getItem(failKey)) || 0) + 1;
+    localStorage.setItem(failKey, fails);
+    if (fails >= 3) {
+      lockAnimal(selectedAnimal);
+      error.textContent = 'Konto gesperrt — zu viele Fehlversuche. Frag deine Lehrperson.';
+      error.classList.remove('hidden');
+      document.getElementById('animalPinInput').disabled = true;
+      renderAnimalGrid();
+    } else {
+      error.textContent = `Falscher PIN. (Versuch ${fails}/3)`;
+      error.classList.remove('hidden');
+    }
   }
 }
 
@@ -1373,6 +1448,8 @@ async function loadTeacherDashboard() {
       }
     });
 
+    await loadLocks();
+    renderLockedBar();
     renderTeacherGrid(teacherData);
     renderSeriesManager();
     const quizCount = docs.filter(d => d.mode !== 'flashcard').length;

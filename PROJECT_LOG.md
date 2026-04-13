@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-04-13 — Session 8: Account lockout
+
+**What changed:**
+- Students get locked out after 3 wrong PIN attempts
+- Locked animals show 🔒 icon, red border, disabled — can't click or enter PIN
+- Failed attempt counter stored in `localStorage` (`ws_fails_<animal>`), lock persisted in Firestore `app/locks` doc
+- Teacher dashboard shows "Gesperrte Konten" bar with one-click unlock buttons
+- Teacher unlock clears both Firestore lock and localStorage fail counter
+- `loadLocks()` called on app init (student side) and on teacher dashboard load (refreshes state)
+- `esc()` now also escapes single quotes (`&#39;`) for defense-in-depth
+
+---
+
 ## 2026-04-10 — Session 7: Unified series in Firestore
 
 **What changed:**

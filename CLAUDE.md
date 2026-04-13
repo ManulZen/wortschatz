@@ -25,7 +25,7 @@ index.html
     ├── ANIMAL_EMOJI  Animal→emoji map (identity pool, ANIMALS derived from keys)
     ├── ANIMAL_PINS Hardcoded 4-digit PINs per animal (local auth, no network)
     ├── TEACHER_HASH SHA-256 hash of teacher password
-    ├── State vars  currentSeries, currentIndex, words[], results[], flashIndex, lastWrongWords, myAnimal, selectedAnimal
+    ├── State vars  currentSeries, currentIndex, words[], results[], flashIndex, lastWrongWords, myAnimal, selectedAnimal, lockedAnimals (Set)
     ├── Helpers     getCanonical, isCorrectAnswer, displayWord, esc (HTML escaping)
     ├── TTS         speak(text, cb) — SpeechSynthesis API
     ├── Screens     showScreen(id), goHome(), selectSeries(n)
@@ -34,6 +34,7 @@ index.html
     ├── Flash       startFlashcards(), loadFlashcard(), flipCard()
     ├── Results     showResults() — saves to Firestore, syncs back to localStorage
     ├── Firebase    saveToFirestore(data), syncFromFirestore() — Firestore is source of truth
+    ├── Locking     loadLocks(), lockAnimal(), unlockAnimal(), renderLockedBar(), teacherUnlock()
     ├── Teacher     checkPin(), loadTeacherDashboard(), renderTeacherGrid(), deleteAnimalData()
     ├── Series Mgmt loadSeries(), addSeries(), deleteSeries(), editSeries(), renderSeriesManager()
     └── Utils       shuffle(), launchConfetti(), buildDotHistory(), esc(), sha256(), parseSeriesInput()
@@ -54,6 +55,7 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 - Project: `wortschatz-2046c`
 - Collection: `results` — one doc per completed quiz/flashcard `{animal, series, correct, total, ts, mistakes[], mode}`
 - Collection: `custom_series` — ALL series (including original 10) `{words[], created}` — doc ID is the series number. Seeded from `DEFAULT_SERIES` on first run.
+- Document: `app/locks` — account lockout state `{ AnimalName: true, ... }`. Field added on lock, deleted on unlock.
 - Firestore rules: currently wide open (`allow read, write: if true`) — acceptable for single-class test, must be locked down before wider use
 - Config is embedded in the `<script>` block (API key is not secret for Firebase client SDK)
 
@@ -63,6 +65,8 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 - On first visit: student picks animal from grid, enters PIN → logged in
 - Animal + PIN cached in localStorage (`ws_animal`, `ws_pin`), validated locally on return
 - "Wechseln" button on start screen lets students switch animal (logout)
+- 3 wrong PIN attempts locks the account — stored in Firestore `app/locks`, fail counter in `localStorage` (`ws_fails_<animal>`)
+- Locked animals show 🔒, disabled in grid — only teacher can unlock via dashboard
 - Scores synced from Firestore on login via `syncFromFirestore()` — Firestore is source of truth
 - localStorage (`ws_best_*`, `ws_history_*`) is a read cache, never written directly
 
@@ -77,7 +81,7 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 
 - **Do not split into multiple files** unless explicitly asked. Single-file is intentional for portability.
 - **Do not add a build step** (webpack, vite, etc.) unless explicitly asked.
-- **LocalStorage keys**: `ws_best_<n>`, `ws_history_<n>` (read cache from Firestore), `ws_animal`, `ws_pin` (session). Never write `ws_best_*`/`ws_history_*` directly — only via `syncFromFirestore()`.
+- **LocalStorage keys**: `ws_best_<n>`, `ws_history_<n>` (read cache from Firestore), `ws_animal`, `ws_pin` (session), `ws_fails_<animal>` (PIN fail counter). Never write `ws_best_*`/`ws_history_*` directly — only via `syncFromFirestore()`.
 - **TTS language**: `de-CH` with fallback to any `de-` voice.
 - **Case sensitivity**: single-word answers are exact-match (German capitalisation matters). Array answers allow case-insensitive match.
 - **XSS**: all user input and Firestore data MUST go through `esc()` or be set via `textContent` — never raw into `innerHTML`.
@@ -102,6 +106,7 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 | 2026-04-10 | Hardcoded series couldn't be edited by teacher | All series moved to Firestore. `DEFAULT_SERIES` seeds on first run, then Firestore is the only source |
 | 2026-04-10 | localStorage and Firestore scores diverged after teacher delete | Made Firestore single source of truth — `syncFromFirestore()` rebuilds localStorage |
 | 2026-04-10 | Dual write (localStorage + Firestore) caused stale data | Removed direct localStorage writes from `showResults()` |
+| 2026-04-13 | Students could brute-force PINs | Account lockout after 3 wrong attempts, teacher-only unlock |
 
 ## What to Update Here
 
