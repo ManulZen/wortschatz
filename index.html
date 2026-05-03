@@ -1528,19 +1528,8 @@ function confirmAnimal() {
     localStorage.removeItem('ws_fails_' + selectedAnimal);
     loginAs(selectedAnimal, pin);
   } else {
-    const failKey = 'ws_fails_' + selectedAnimal;
-    const fails = (parseInt(localStorage.getItem(failKey)) || 0) + 1;
-    localStorage.setItem(failKey, fails);
-    if (fails >= 3) {
-      lockAnimal(selectedAnimal);
-      error.textContent = 'Konto gesperrt — zu viele Fehlversuche. Frag deine Lehrperson.';
-      error.classList.remove('hidden');
-      document.getElementById('animalPinInput').disabled = true;
-      renderAnimalGrid();
-    } else {
-      error.textContent = `Falscher PIN. (Versuch ${fails}/3)`;
-      error.classList.remove('hidden');
-    }
+    error.textContent = 'Falscher PIN. Schau auf dein Kärtchen und probiere es nochmal.';
+    error.classList.remove('hidden');
   }
 }
 

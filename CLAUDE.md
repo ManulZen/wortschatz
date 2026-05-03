@@ -34,7 +34,7 @@ index.html
     ├── Flash       startFlashcards(), loadFlashcard(), flipCard()
     ├── Results     showResults() — saves to Firestore, syncs back to localStorage
     ├── Firebase    saveToFirestore(data), syncFromFirestore() — Firestore is source of truth
-    ├── Locking     loadLocks(), lockAnimal(), unlockAnimal(), renderLockedBar(), teacherUnlock()
+    ├── Locking     loadLocks(), unlockAnimal(), renderLockedBar(), teacherUnlock() — legacy unlock only
     ├── Teacher     checkPin(), loadTeacherDashboard(), renderTeacherGrid(), deleteAnimalData()
     ├── Series Mgmt loadSeries(), addSeries(), deleteSeries(), editSeries(), renderSeriesManager()
     └── Utils       shuffle(), launchConfetti(), buildDotHistory(), esc(), sha256(), parseSeriesInput()
@@ -55,7 +55,7 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 - Project: `wortschatz-2046c`
 - Collection: `results` — one doc per completed quiz/flashcard `{animal, series, correct, total, ts, mistakes[], mode}`
 - Collection: `custom_series` — ALL series (including original 10) `{words[], created}` — doc ID is the series number. Seeded from `DEFAULT_SERIES` on first run.
-- Document: `app/locks` — account lockout state `{ AnimalName: true, ... }`. Field added on lock, deleted on unlock.
+- Document: `app/locks` — legacy account lockout state `{ AnimalName: true, ... }`; current student login no longer creates new locks, teacher view can still clear old locks.
 - Firestore rules: currently wide open (`allow read, write: if true`) — acceptable for single-class test, must be locked down before wider use
 - Config is embedded in the `<script>` block (API key is not secret for Firebase client SDK)
 
@@ -65,8 +65,8 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 - On first visit: student picks animal from grid, enters PIN → logged in
 - Animal + PIN cached in localStorage (`ws_animal`, `ws_pin`), validated locally on return
 - "Wechseln" button on start screen lets students switch animal (logout)
-- 3 wrong PIN attempts locks the account — stored in Firestore `app/locks`, fail counter in `localStorage` (`ws_fails_<animal>`)
-- Locked animals show 🔒, disabled in grid — only teacher can unlock via dashboard
+- Wrong PIN attempts show a retry message only; student-side account lockout is disabled to avoid children locking each other out.
+- Legacy locked animals still show 🔒 and can be unlocked in the teacher dashboard.
 - Scores synced from Firestore on login via `syncFromFirestore()` — Firestore is source of truth
 - localStorage (`ws_best_*`, `ws_history_*`) is a read cache, never written directly
 
@@ -81,7 +81,7 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` in the
 
 - **Do not split into multiple files** unless explicitly asked. Single-file is intentional for portability.
 - **Do not add a build step** (webpack, vite, etc.) unless explicitly asked.
-- **LocalStorage keys**: `ws_best_<n>`, `ws_history_<n>` (read cache from Firestore), `ws_animal`, `ws_pin` (session), `ws_fails_<animal>` (PIN fail counter). Never write `ws_best_*`/`ws_history_*` directly — only via `syncFromFirestore()`.
+- **LocalStorage keys**: `ws_best_<n>`, `ws_history_<n>` (read cache from Firestore), `ws_animal`, `ws_pin` (session). Legacy `ws_fails_<animal>` may exist from older sessions but student login no longer writes it. Never write `ws_best_*`/`ws_history_*` directly — only via `syncFromFirestore()`.
 - **TTS language**: `de-CH` with fallback to any `de-` voice.
 - **Case sensitivity**: single-word answers are exact-match (German capitalisation matters). Array answers allow case-insensitive match.
 - **XSS**: all user input and Firestore data MUST go through `esc()` or be set via `textContent` — never raw into `innerHTML`.

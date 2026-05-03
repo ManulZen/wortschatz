@@ -9,7 +9,7 @@ https://wortschatz-vert.vercel.app/?teacher
 
 Hinweis:
 Jedes Kind waehlt sein Tier und gibt den passenden 4-stelligen PIN ein.
-Nach 3 falschen Versuchen wird das Tier gesperrt und muss in der Lehreransicht entsperrt werden.
+Bei einem falschen PIN einfach nochmal auf dem Kaertchen nachschauen und erneut versuchen.
 
 Tier        PIN
 ----------------
