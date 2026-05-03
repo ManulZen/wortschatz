@@ -1659,7 +1659,8 @@ function buildPrintTemplatesHtml() {
 body { margin: 0; font-family: Arial, sans-serif; color: #202124; background: #f4f4f4; }
 .print-toolbar { position: sticky; top: 0; z-index: 10; padding: 10px 14px; background: #202124; color: white; display: flex; gap: 10px; align-items: center; }
 .print-toolbar button { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
-.page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 14mm; background: white; page-break-after: always; }
+.page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 14mm; background: white; break-after: page; }
+.page:last-of-type { break-after: auto; }
 h1, h2 { margin: 0 0 8px; color: #d84f22; }
 p { margin: 4px 0; line-height: 1.35; }
 .intro { display: grid; grid-template-columns: 1fr 58mm; gap: 14mm; align-items: center; border: 2px solid #f0b294; border-radius: 8px; padding: 12mm; margin-top: 18mm; }
@@ -1674,16 +1675,18 @@ p { margin: 4px 0; line-height: 1.35; }
 .card img { width: 25mm; height: 25mm; }
 .cut { color: #666; font-size: 11px; margin-top: 3mm; }
 @media print {
+  @page { size: A4; margin: 0; }
   body { background: white; }
   .print-toolbar { display: none; }
-  .page { margin: 0; box-shadow: none; }
+  .page { width: 210mm; height: 297mm; min-height: 0; margin: 0; padding: 12mm; box-shadow: none; overflow: hidden; break-after: page; }
+  .page:last-of-type { break-after: auto; }
 }
 </style>
 </head>
 <body>
 <div class="print-toolbar">
-  <button onclick="window.print()">Drucken</button>
-  <span>Druckvorlagen nur aus der Lehreransicht oeffnen.</span>
+  <button onclick="window.print()">PDF speichern / Drucken</button>
+  <span>Im Druckdialog "Als PDF speichern" waehlen. Leere Zwischenseiten sollten jetzt weg sein.</span>
 </div>
 <section class="page">
   <h1>Wortschatz-Trainer</h1>

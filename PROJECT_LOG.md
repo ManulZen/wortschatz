@@ -12,6 +12,7 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 - Generated QR codes for the student and teacher landing pages: `qr-schueler.png`, `qr-lehrerin.png`
 - Added printable browser sheet `druckvorlagen.html` with class QR sheet, teacher access, and per-student login cards
 - Moved printable login cards behind the teacher login; public `/druckvorlagen.html` now redirects to the teacher view
+- Fixed print CSS for the teacher-only handouts to avoid blank interleaved pages and clarified the PDF-save button
 - Replaced the reused teacher password with a unique app-only password hash
 - Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
 - Teacher grid now shows all 25 animal accounts, including children with no data yet
