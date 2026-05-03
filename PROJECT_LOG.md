@@ -14,6 +14,7 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 - Replaced the reused teacher password with a unique app-only password hash
 - Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
 - Teacher grid now shows all 25 animal accounts, including children with no data yet
+- Teacher grid now stays usable beyond 10 series with horizontal scrolling and a sticky student column
 - Learning flow now restores mistake words from Firestore after login/reload
 - Normal dictation prioritizes earlier mistake words first, then continues with the remaining words
 

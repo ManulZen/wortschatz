@@ -657,6 +657,17 @@ body {
   overflow: hidden;
   box-shadow: var(--shadow);
 }
+.teacher-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  background: var(--card);
+}
+.teacher-table-wrap .teacher-table {
+  box-shadow: none;
+  border-radius: 0;
+}
 .teacher-table th {
   background: var(--primary);
   color: white;
@@ -672,6 +683,16 @@ body {
 }
 .teacher-table tr:last-child td { border-bottom: none; }
 .teacher-table tr:hover td { background: #FFF8F0; }
+.animal-col, .teacher-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--card);
+}
+.teacher-table th:first-child {
+  background: var(--primary);
+  z-index: 3;
+}
 .animal-col { text-align: left !important; font-weight: 700; white-space: nowrap; }
 .cell-done { color: var(--success); font-weight: 700; }
 .cell-mid { color: #E67E22; font-weight: 700; }
@@ -1571,7 +1592,7 @@ function renderTeacherOverview(teacherData, docs) {
 }
 
 function renderTeacherGrid(teacherData) {
-  const seriesKeys = Object.keys(SERIES).map(Number);
+  const seriesKeys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
   const animals = [...ANIMALS].sort();
   const grid = document.getElementById('teacherGrid');
 
@@ -1582,6 +1603,7 @@ function renderTeacherGrid(teacherData) {
 
   const table = document.createElement('table');
   table.className = 'teacher-table';
+  table.style.minWidth = Math.max(760, 180 + (seriesKeys.length * 74) + 54) + 'px';
 
   const thead = table.createTHead();
   const hr = thead.insertRow();
@@ -1653,7 +1675,10 @@ function renderTeacherGrid(teacherData) {
   });
 
   grid.innerHTML = '';
-  grid.appendChild(table);
+  const wrap = document.createElement('div');
+  wrap.className = 'teacher-table-wrap';
+  wrap.appendChild(table);
+  grid.appendChild(wrap);
 }
 
 async function deleteAnimalData(animal) {
