@@ -17,6 +17,7 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 - Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
 - Teacher grid now shows all 25 animal accounts, including children with no data yet
 - Teacher grid now stays usable beyond 10 series with horizontal scrolling and a sticky student column
+- Teacher dashboard width and table spacing tuned so 10 series plus delete actions fit better on desktop
 - Learning flow now restores mistake words from Firestore after login/reload
 - Normal dictation prioritizes earlier mistake words first, then continues with the remaining words
 - Student quiz now gives an empty-answer listening prompt, accepts obvious first-letter capitalization fixes, and fills the progress bar after each checked answer

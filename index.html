@@ -619,7 +619,7 @@ body {
 /* --- TEACHER VIEW --- */
 .teacher-wrap {
   padding: 24px;
-  max-width: 980px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 .teacher-wrap h1 {
@@ -711,12 +711,12 @@ body {
 .teacher-table th {
   background: var(--primary);
   color: white;
-  padding: 10px 14px;
+  padding: 9px 10px;
   font-family: 'Fredoka', sans-serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 .teacher-table td {
-  padding: 10px 14px;
+  padding: 9px 10px;
   border-bottom: 1px solid #F0F0F0;
   text-align: center;
   font-size: 0.9rem;
@@ -734,6 +734,12 @@ body {
   z-index: 3;
 }
 .animal-col { text-align: left !important; font-weight: 700; white-space: nowrap; }
+.teacher-table th:last-child,
+.teacher-table td:last-child {
+  width: 42px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
 .cell-done { color: var(--success); font-weight: 700; }
 .cell-mid { color: #E67E22; font-weight: 700; }
 .cell-poor { color: var(--error); font-weight: 700; }
@@ -1812,7 +1818,7 @@ function renderTeacherGrid(teacherData) {
 
   const table = document.createElement('table');
   table.className = 'teacher-table';
-  table.style.minWidth = Math.max(760, 180 + (seriesKeys.length * 74) + 54) + 'px';
+  table.style.minWidth = Math.max(820, 168 + (seriesKeys.length * 58) + 42) + 'px';
 
   const thead = table.createTHead();
   const hr = thead.insertRow();
