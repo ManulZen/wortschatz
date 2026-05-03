@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wortschatz-Trainer Druckvorlagen</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  color: #202124;
+  background: #f4f4f4;
+}
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 12px auto;
+  padding: 14mm;
+  background: white;
+  page-break-after: always;
+}
+h1, h2 {
+  margin: 0 0 8px;
+  color: #d84f22;
+}
+p { margin: 4px 0; line-height: 1.35; }
+.intro {
+  display: grid;
+  grid-template-columns: 1fr 58mm;
+  gap: 14mm;
+  align-items: center;
+  border: 2px solid #f0b294;
+  border-radius: 8px;
+  padding: 12mm;
+  margin-top: 18mm;
+}
+.qr {
+  width: 52mm;
+  height: 52mm;
+  image-rendering: crisp-edges;
+}
+.url {
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.teacher-box {
+  border: 2px solid #d84f22;
+  border-radius: 8px;
+  padding: 10mm;
+  margin-top: 14mm;
+}
+.password {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-top: 5mm;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6mm;
+}
+.card {
+  min-height: 48mm;
+  border: 1.5px solid #202124;
+  border-radius: 6px;
+  padding: 6mm;
+  display: grid;
+  grid-template-columns: 1fr 26mm;
+  gap: 5mm;
+  align-items: center;
+  break-inside: avoid;
+}
+.animal {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 4mm;
+}
+.pin {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.card img {
+  width: 25mm;
+  height: 25mm;
+}
+.cut {
+  color: #666;
+  font-size: 11px;
+  margin-top: 3mm;
+}
+@media print {
+  body { background: white; }
+  .page { margin: 0; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+<section class="page">
+  <h1>Wortschatz-Trainer</h1>
+  <p>Startblatt fuer die Klasse</p>
+  <div class="intro">
+    <div>
+      <h2>So starten die Kinder</h2>
+      <p>1. QR-Code scannen.</p>
+      <p>2. Eigenes Tier auswaehlen.</p>
+      <p>3. PIN von der Karte eingeben.</p>
+      <p>4. Serie auswaehlen und ueben.</p>
+      <p class="url">https://wortschatz-vert.vercel.app/</p>
+    </div>
+    <img class="qr" src="qr-schueler.png" alt="QR-Code Schuelerseite">
+  </div>
+  <div class="teacher-box">
+    <h2>Lehreransicht</h2>
+    <p>Nur fuer die Lehrperson: Fortschritt ansehen, Konten entsperren, Serien verwalten.</p>
+    <p class="url">https://wortschatz-vert.vercel.app/?teacher</p>
+    <img class="qr" src="qr-lehrerin.png" alt="QR-Code Lehreransicht">
+    <p>Lehrerpasswort nur fuer diese App:</p>
+    <div class="password">WT-M6NM-DVM4-YUQ9</div>
+  </div>
+</section>
+
+<section class="page">
+  <h1>Login-Kaertchen</h1>
+  <p class="cut">Ausschneiden und einzeln verteilen. Jedes Kind bekommt genau ein Tier.</p>
+  <div class="cards">
+    <div class="card"><div><div class="animal">Adler</div><p>PIN</p><div class="pin">4821</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Baer</div><p>PIN</p><div class="pin">7354</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Delfin</div><p>PIN</p><div class="pin">1963</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Elefant</div><p>PIN</p><div class="pin">5207</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Fuchs</div><p>PIN</p><div class="pin">8630</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Giraffe</div><p>PIN</p><div class="pin">3175</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Hamster</div><p>PIN</p><div class="pin">6492</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Igel</div><p>PIN</p><div class="pin">9048</div></div><img src="qr-schueler.png" alt=""></div>
+  </div>
+</section>
+
+<section class="page">
+  <h1>Login-Kaertchen</h1>
+  <div class="cards">
+    <div class="card"><div><div class="animal">Jaguar</div><p>PIN</p><div class="pin">2716</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Koala</div><p>PIN</p><div class="pin">5839</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Loewe</div><p>PIN</p><div class="pin">1024</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Maus</div><p>PIN</p><div class="pin">7461</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Nashorn</div><p>PIN</p><div class="pin">3958</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Otter</div><p>PIN</p><div class="pin">6203</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Pinguin</div><p>PIN</p><div class="pin">8547</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Rabe</div><p>PIN</p><div class="pin">4172</div></div><img src="qr-schueler.png" alt=""></div>
+  </div>
+</section>
+
+<section class="page">
+  <h1>Login-Kaertchen</h1>
+  <div class="cards">
+    <div class="card"><div><div class="animal">Schaf</div><p>PIN</p><div class="pin">9635</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Tiger</div><p>PIN</p><div class="pin">2089</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Uhu</div><p>PIN</p><div class="pin">5314</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Wolf</div><p>PIN</p><div class="pin">7806</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Zebra</div><p>PIN</p><div class="pin">1493</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Biber</div><p>PIN</p><div class="pin">6750</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Dachs</div><p>PIN</p><div class="pin">3287</div></div><img src="qr-schueler.png" alt=""></div>
+    <div class="card"><div><div class="animal">Flamingo</div><p>PIN</p><div class="pin">8914</div></div><img src="qr-schueler.png" alt=""></div>
+  </div>
+</section>
+
+<section class="page">
+  <h1>Login-Kaertchen</h1>
+  <div class="cards">
+    <div class="card"><div><div class="animal">Kaenguru</div><p>PIN</p><div class="pin">4563</div></div><img src="qr-schueler.png" alt=""></div>
+  </div>
+</section>
+</body>
+</html>

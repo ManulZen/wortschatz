@@ -10,6 +10,8 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 **What changed:**
 - Added printable handoff file `freundin_pins.txt` with student URL, teacher URL, and all animal PINs
 - Generated QR codes for the student and teacher landing pages: `qr-schueler.png`, `qr-lehrerin.png`
+- Added printable browser sheet `druckvorlagen.html` with class QR sheet, teacher access, and per-student login cards
+- Replaced the reused teacher password with a unique app-only password hash
 - Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
 - Teacher grid now shows all 25 animal accounts, including children with no data yet
 - Learning flow now restores mistake words from Firestore after login/reload

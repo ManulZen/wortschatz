@@ -7,6 +7,9 @@ https://wortschatz-vert.vercel.app/
 Lehreransicht:
 https://wortschatz-vert.vercel.app/?teacher
 
+Lehrerpasswort nur fuer diese App:
+WT-M6NM-DVM4-YUQ9
+
 Hinweis:
 Jedes Kind waehlt sein Tier und gibt den passenden 4-stelligen PIN ein.
 Nach 3 falschen Versuchen wird das Tier gesperrt und muss in der Lehreransicht entsperrt werden.
