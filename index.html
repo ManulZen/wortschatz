@@ -308,6 +308,7 @@ body {
 .word-input:focus { border-color: var(--primary); background: white; }
 .word-input.correct { border-color: var(--success); background: var(--success-bg); }
 .word-input.wrong { border-color: var(--error); background: var(--error-bg); }
+.word-input.empty { border-color: #F1C40F; background: #FFF8D8; }
 
 .check-btn {
   font-family: 'Fredoka', sans-serif;
@@ -1157,22 +1158,33 @@ function checkAnswer() {
   if (answered) return;
   const input = document.getElementById('wordInput');
   const typed = input.value.trim();
-  if (!typed) return;
+  const fb = document.getElementById('feedback');
+  const corr = document.getElementById('correction');
+  fb.classList.remove('hidden', 'correct', 'wrong');
+  corr.classList.add('hidden');
+  if (!typed) {
+    input.className = 'word-input empty';
+    fb.textContent = 'Hör noch einmal genau hin.';
+    speakWord();
+    input.focus();
+    return;
+  }
 
   answered = true;
   const entry = words[currentIndex];
   const correct = isCorrectAnswer(entry, typed);
+  const capitalizedTyped = capitalizeFirst(typed);
+  const capitalizationFix = !correct && capitalizedTyped !== typed && isCorrectAnswer(entry, capitalizedTyped);
+  const finalCorrect = correct || capitalizationFix;
+  const savedTyped = capitalizationFix ? capitalizedTyped : typed;
 
-  results.push({ entry, typed, correct });
+  results.push({ entry, typed: savedTyped, correct: finalCorrect });
 
-  const fb = document.getElementById('feedback');
-  const corr = document.getElementById('correction');
-  fb.classList.remove('hidden', 'correct', 'wrong');
-
-  if (correct) {
+  if (finalCorrect) {
     input.className = 'word-input correct';
     fb.classList.add('correct');
-    fb.innerHTML = '✓ Richtig!';
+    fb.textContent = capitalizationFix ? '✓ Richtig, mit grossem Anfangsbuchstaben!' : '✓ Richtig!';
+    if (capitalizationFix) input.value = capitalizedTyped;
     corr.classList.add('hidden');
   } else {
     input.className = 'word-input wrong';
@@ -1185,6 +1197,11 @@ function checkAnswer() {
   input.disabled = true;
   document.getElementById('checkBtn').disabled = true;
   document.getElementById('nextBtn').classList.remove('hidden');
+  updateProgress();
+}
+
+function capitalizeFirst(str) {
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 }
 
 function nextWord() {
@@ -1197,7 +1214,7 @@ function nextWord() {
 }
 
 function updateProgress() {
-  const pct = (currentIndex / words.length) * 100;
+  const pct = ((currentIndex + (answered ? 1 : 0)) / words.length) * 100;
   document.getElementById('progressBar').style.width = pct + '%';
   document.getElementById('progressText').textContent = `${currentIndex + 1}/${words.length}`;
 }

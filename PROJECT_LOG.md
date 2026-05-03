@@ -18,6 +18,7 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 - Teacher grid now stays usable beyond 10 series with horizontal scrolling and a sticky student column
 - Learning flow now restores mistake words from Firestore after login/reload
 - Normal dictation prioritizes earlier mistake words first, then continues with the remaining words
+- Student quiz now gives an empty-answer listening prompt, accepts obvious first-letter capitalization fixes, and fills the progress bar after each checked answer
 
 ---
 
