@@ -11,23 +11,29 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg: #FFF8F0;
+  --bg: #EAF7F7;
+  --bg-2: #FFF7D6;
   --card: #FFFFFF;
-  --primary: #FF6B35;
-  --primary-light: #FF8C5A;
+  --primary: #1BA6A6;
+  --primary-light: #45C7C7;
+  --accent: #FFD166;
+  --accent-soft: #FFF3BF;
   --success: #2ECC71;
   --success-bg: #E8F8F0;
   --error: #E74C3C;
   --error-bg: #FDE8E8;
-  --text: #2D3436;
-  --text-light: #636E72;
+  --text: #25313B;
+  --text-light: #66737A;
   --shadow: 0 4px 20px rgba(0,0,0,0.08);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
 }
 
 body {
   font-family: 'Nunito', sans-serif;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,209,102,0.42), transparent 26%),
+    radial-gradient(circle at 84% 18%, rgba(69,199,199,0.32), transparent 28%),
+    linear-gradient(180deg, var(--bg), #F7FCFB 58%, var(--bg-2));
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
@@ -81,6 +87,14 @@ body {
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
+}
+
+.series-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
 }
 
 .series-btn:hover {
@@ -138,7 +152,7 @@ body {
   width: 100%;
   border: 3px solid var(--primary);
   border-radius: 18px;
-  background: #FFF0E8;
+  background: linear-gradient(135deg, #E8FFFF, var(--accent-soft));
   color: var(--text);
   box-shadow: var(--shadow);
   padding: 16px 18px;
@@ -266,7 +280,7 @@ body {
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary), #FF9F43);
+  background: linear-gradient(90deg, var(--primary), var(--accent));
   border-radius: 99px;
   transition: width 0.4s ease;
 }
@@ -290,6 +304,20 @@ body {
   margin-top: 20px;
 }
 
+.animal-companion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 74px;
+  height: 74px;
+  margin: -8px auto 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-soft), #E8FFFF);
+  border: 3px solid white;
+  box-shadow: var(--shadow);
+  font-size: 2.5rem;
+}
+
 .listen-btn {
   width: 100px;
   height: 100px;
@@ -299,7 +327,7 @@ body {
   color: white;
   font-size: 2.5rem;
   cursor: pointer;
-  box-shadow: 0 6px 24px rgba(255,107,53,0.35);
+  box-shadow: 0 6px 24px rgba(27,166,166,0.35);
   transition: all 0.2s;
   margin: 0 auto 28px;
   display: flex;
@@ -312,8 +340,8 @@ body {
 .listen-btn.playing { animation: pulse 0.8s ease infinite; }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 6px 24px rgba(255,107,53,0.35); }
-  50% { box-shadow: 0 6px 40px rgba(255,107,53,0.55); }
+  0%, 100% { box-shadow: 0 6px 24px rgba(27,166,166,0.35); }
+  50% { box-shadow: 0 6px 40px rgba(27,166,166,0.55); }
 }
 
 .hint-text {
@@ -357,7 +385,7 @@ body {
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(255,107,53,0.3);
+  box-shadow: 0 4px 16px rgba(27,166,166,0.28);
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -421,7 +449,19 @@ body {
   width: 100%;
 }
 
-.results-emoji { font-size: 4rem; margin-bottom: 16px; }
+.results-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-soft), #E8FFFF);
+  border: 3px solid white;
+  box-shadow: var(--shadow);
+  font-size: 3.8rem;
+  margin-bottom: 16px;
+}
 
 .results-card h2 {
   font-family: 'Fredoka', sans-serif;
@@ -494,7 +534,7 @@ body {
   transition: all 0.2s;
 }
 
-.btn-retry { background: var(--primary); color: white; box-shadow: 0 4px 16px rgba(255,107,53,0.3); }
+.btn-retry { background: var(--primary); color: white; box-shadow: 0 4px 16px rgba(27,166,166,0.28); }
 .btn-retry-wrong { background: var(--error); color: white; box-shadow: 0 4px 16px rgba(231,76,60,0.3); }
 .btn-home { background: #EEE; color: var(--text); }
 .btn-retry:hover, .btn-home:hover, .btn-retry-wrong:hover { transform: translateY(-2px); }
@@ -535,7 +575,7 @@ body {
 }
 
 .flashcard-front {
-  background: linear-gradient(135deg, var(--primary), #FF9F43);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
   font-size: 3rem;
 }
@@ -576,8 +616,17 @@ body {
 
 /* --- ANIMAL BADGE --- */
 .animal-badge {
-  font-size: 1rem;
-  color: var(--text-light);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.05rem;
+  color: var(--text);
+  background: white;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: var(--shadow);
   margin-top: 8px;
 }
 
@@ -605,7 +654,7 @@ body {
   position: relative;
 }
 .animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); }
-.animal-pick.selected { border-color: var(--primary); background: #FFF0E8; }
+.animal-pick.selected { border-color: var(--primary); background: #E8FFFF; }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
 .animal-pick.locked { opacity: 0.45; cursor: not-allowed; border-color: var(--error); background: #fff0f0; }
 .animal-pick.locked:hover { transform: none; border-color: var(--error); }
@@ -909,6 +958,7 @@ body {
     <span class="progress-text" id="progressText">1/10</span>
   </div>
   <div class="quiz-card">
+    <div class="animal-companion" id="quizAnimal"></div>
     <button class="listen-btn" id="listenBtn" onclick="speakWord()">🔊</button>
     <p class="hint-text">Drücke auf den Lautsprecher und schreibe das Wort.</p>
     <div class="input-row">
@@ -931,6 +981,7 @@ body {
     <span class="progress-text" id="flashProgressText">1/10</span>
   </div>
   <div class="quiz-card">
+    <div class="animal-companion" id="flashAnimal"></div>
     <button class="listen-btn" id="flashListenBtn" onclick="speakFlashWord()">🔊</button>
     <p class="hint-text">Höre das Wort, stelle es dir vor, dann tippe auf die Karte.</p>
     <div class="flashcard-area">
@@ -1249,6 +1300,7 @@ function startQuiz(wrongOnly) {
   currentIndex = 0;
   results = [];
   answered = false;
+  updateAnimalCompanions();
   showScreen('quizScreen');
   loadQuestion();
 }
@@ -1380,19 +1432,20 @@ function showResults() {
 
   const emoji = document.getElementById('resultsEmoji');
   const title = document.getElementById('resultsTitle');
+  const animalEmoji = ANIMAL_EMOJI[myAnimal] || '';
 
   if (pct === 100) {
-    emoji.textContent = '🏆';
+    emoji.textContent = animalEmoji || '🏆';
     title.textContent = 'Perfekt!';
     launchConfetti();
   } else if (pct >= 80) {
-    emoji.textContent = '💪';
+    emoji.textContent = animalEmoji || '💪';
     title.textContent = 'Super gemacht!';
   } else if (pct >= 50) {
-    emoji.textContent = '😊';
+    emoji.textContent = animalEmoji || '😊';
     title.textContent = 'Gut, übe weiter!';
   } else {
-    emoji.textContent = '😅';
+    emoji.textContent = animalEmoji || '😅';
     title.textContent = 'Weiter üben!';
   }
 
@@ -1416,8 +1469,17 @@ function showResults() {
 function startFlashcards() {
   words = shuffle([...SERIES[currentSeries]]);
   flashIndex = 0;
+  updateAnimalCompanions();
   showScreen('flashScreen');
   loadFlashcard();
+}
+
+function updateAnimalCompanions() {
+  const emoji = ANIMAL_EMOJI[myAnimal] || '';
+  ['quizAnimal', 'flashAnimal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = emoji;
+  });
 }
 
 function loadFlashcard() {
@@ -1465,7 +1527,7 @@ function shuffle(arr) {
 function launchConfetti() {
   const container = document.getElementById('confetti');
   container.innerHTML = '';
-  const colors = ['#FF6B35', '#FF9F43', '#2ECC71', '#3498DB', '#E74C3C', '#F1C40F', '#9B59B6'];
+  const colors = ['#1BA6A6', '#45C7C7', '#FFD166', '#2ECC71', '#3498DB', '#E74C3C', '#9B59B6'];
   for (let i = 0; i < 60; i++) {
     const piece = document.createElement('div');
     piece.className = 'confetti-piece';
