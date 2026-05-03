@@ -15,6 +15,7 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 - Fixed print CSS for the teacher-only handouts to avoid blank interleaved pages and clarified the PDF-save button
 - Replaced the reused teacher password with a unique app-only password hash
 - Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
+- Teacher dashboard now includes a simple performance analysis for students needing support, difficult series, and frequent mistake words
 - Teacher grid now shows all 25 animal accounts, including children with no data yet
 - Teacher grid now stays usable beyond 10 series with horizontal scrolling and a sticky student column
 - Teacher dashboard width and table spacing tuned so 10 series plus delete actions fit better on desktop

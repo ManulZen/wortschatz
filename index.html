@@ -687,6 +687,48 @@ body {
   color: var(--text-light);
   font-size: 0.82rem;
 }
+.teacher-analysis {
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin: 0 0 16px;
+}
+.teacher-analysis h2 {
+  font-family: 'Fredoka', sans-serif;
+  color: var(--primary);
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.analysis-card h3 {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.analysis-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.analysis-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 5px 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.analysis-muted {
+  color: var(--text-light);
+  font-size: 0.86rem;
+}
 .refresh-btn:hover { transform: translateY(-2px); }
 .teacher-actions .refresh-btn { margin-bottom: 0; }
 .teacher-table {
@@ -946,6 +988,7 @@ body {
       <button class="teacher-link" type="button" onclick="openPrintTemplates()">Druckvorlagen</button>
     </div>
     <div class="teacher-overview" id="teacherOverview"></div>
+    <div id="teacherAnalysis"></div>
     <div id="lockedBar"></div>
     <div id="teacherGrid"><p style="color:var(--text-light)">Lade Daten…</p></div>
     <div style="margin-top:32px">
@@ -1654,6 +1697,7 @@ async function loadTeacherDashboard() {
     await loadLocks();
     renderLockedBar();
     renderTeacherOverview(teacherData, docs);
+    renderTeacherAnalysis(teacherData, docs);
     renderTeacherGrid(teacherData);
     renderSeriesManager();
     const quizCount = docs.filter(d => d.mode !== 'flashcard').length;
@@ -1693,6 +1737,74 @@ function renderTeacherOverview(teacherData, docs) {
     `<div class="teacher-stat"><strong>${lockedAnimals.size}</strong><span>gesperrte Konten</span></div>`,
     `<div class="teacher-stat"><strong>${topMistake ? esc(topMistake[0]) : '—'}</strong><span>häufigster Fehler${topMistake ? ' (' + topMistake[1] + '×)' : ''}</span></div>`
   ].join('');
+}
+
+function renderTeacherAnalysis(teacherData, docs) {
+  const box = document.getElementById('teacherAnalysis');
+  if (!box) return;
+  const quizDocs = docs.filter(d => d.mode !== 'flashcard' && d.series);
+  if (quizDocs.length === 0) {
+    box.innerHTML = '';
+    return;
+  }
+
+  const animalStats = {};
+  const seriesStats = {};
+  const mistakeCounts = {};
+
+  quizDocs.forEach(d => {
+    const animal = d.animal || 'Unbekannt';
+    const series = Number(d.series);
+    const correct = Number(d.correct) || 0;
+    const total = Number(d.total) || 0;
+    if (total <= 0) return;
+
+    if (!animalStats[animal]) animalStats[animal] = { correct: 0, total: 0, attempts: 0 };
+    animalStats[animal].correct += correct;
+    animalStats[animal].total += total;
+    animalStats[animal].attempts++;
+
+    if (!seriesStats[series]) seriesStats[series] = { correct: 0, total: 0, attempts: 0 };
+    seriesStats[series].correct += correct;
+    seriesStats[series].total += total;
+    seriesStats[series].attempts++;
+
+    (d.mistakes || []).forEach(w => { mistakeCounts[w] = (mistakeCounts[w] || 0) + 1; });
+  });
+
+  const support = Object.entries(animalStats)
+    .map(([animal, s]) => ({ animal, pct: s.correct / s.total, attempts: s.attempts }))
+    .filter(s => s.attempts >= 1 && s.pct < 0.8)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 5);
+
+  const difficultSeries = Object.entries(seriesStats)
+    .map(([series, s]) => ({ series: Number(series), pct: s.correct / s.total, attempts: s.attempts }))
+    .filter(s => s.attempts >= 2)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 5);
+
+  const topMistakes = Object.entries(mistakeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  box.innerHTML = `<div class="teacher-analysis">
+    <h2>Performance-Analyse</h2>
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h3>Hilfebedarf</h3>
+        ${support.length ? `<div class="analysis-list">${support.map(s => `<span class="analysis-tag">${ANIMAL_EMOJI[s.animal] || ''} ${esc(s.animal)} · ${Math.round(s.pct * 100)}%</span>`).join('')}</div>` : '<p class="analysis-muted">Aktuell kein klares Warnsignal.</p>'}
+      </div>
+      <div class="analysis-card">
+        <h3>Schwierige Serien</h3>
+        ${difficultSeries.length ? `<div class="analysis-list">${difficultSeries.map(s => `<span class="analysis-tag">S${s.series} · ${Math.round(s.pct * 100)}% · ${s.attempts}×</span>`).join('')}</div>` : '<p class="analysis-muted">Mehr Versuche sammeln, dann wird das aussagekräftiger.</p>'}
+      </div>
+      <div class="analysis-card">
+        <h3>Häufige Wörter</h3>
+        ${topMistakes.length ? `<div class="analysis-list">${topMistakes.map(([w, n]) => `<span class="analysis-tag">${esc(w)} · ${n}×</span>`).join('')}</div>` : '<p class="analysis-muted">Noch keine Fehlerwörter gesammelt.</p>'}
+      </div>
+    </div>
+  </div>`;
 }
 
 function openPrintTemplates() {
