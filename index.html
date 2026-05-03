@@ -128,6 +128,43 @@ body {
 .stat-dot.correct { background: var(--success); }
 .stat-dot.wrong { background: var(--error); }
 
+.practice-pick {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 0 18px;
+}
+
+.practice-btn {
+  width: 100%;
+  border: 3px solid var(--primary);
+  border-radius: 18px;
+  background: #FFF0E8;
+  color: var(--text);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.practice-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.practice-btn strong {
+  display: block;
+  font-family: 'Fredoka', sans-serif;
+  color: var(--primary);
+  font-size: 1.15rem;
+  margin-bottom: 3px;
+}
+
+.practice-btn span {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
 /* --- MODE SELECT --- */
 .mode-select {
   min-height: 100vh;
@@ -784,6 +821,7 @@ body {
 <div id="startScreen" class="start-screen hidden">
   <h1>Wortschatz-Trainer</h1>
   <p class="subtitle">Wähle eine Serie zum Üben</p>
+  <div class="practice-pick hidden" id="practicePick"></div>
   <div class="series-grid" id="seriesGrid"></div>
   <p class="animal-badge" id="animalBadge"></p>
   <button class="back-btn" id="logoutBtn" onclick="logout()" style="font-size:0.82rem;margin-top:4px">Wechseln</button>
@@ -1041,6 +1079,7 @@ async function init() {
 function renderSeriesGrid() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
+  renderPracticePick();
   Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(i => {
     const btn = document.createElement('button');
     btn.className = 'series-btn';
@@ -1057,6 +1096,56 @@ function renderSeriesGrid() {
     btn.onclick = () => selectSeries(i);
     grid.appendChild(btn);
   });
+}
+
+function renderPracticePick() {
+  const pick = document.getElementById('practicePick');
+  if (!pick) return;
+  const rec = getRecommendedSeries();
+  if (!rec) {
+    pick.classList.add('hidden');
+    pick.innerHTML = '';
+    return;
+  }
+  pick.classList.remove('hidden');
+  pick.innerHTML = `<button class="practice-btn" onclick="selectSeries(${rec.series})">
+    <strong>🚀 Heute üben: Serie ${rec.series}</strong>
+    <span>${esc(rec.reason)}</span>
+  </button>`;
+}
+
+function getRecommendedSeries() {
+  const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
+  if (keys.length === 0) return null;
+
+  const candidates = keys.map(series => {
+    const total = SERIES[series].length || 1;
+    const best = localStorage.getItem('ws_best_' + series);
+    const history = JSON.parse(localStorage.getItem('ws_history_' + series) || '[]');
+    const mistakes = lastWrongWords[series]?.length || 0;
+    const bestScore = best === null ? null : Number(best) || 0;
+    const bestPct = bestScore === null ? 0 : bestScore / total;
+    const lastAttempt = history[history.length - 1];
+    const lastPct = lastAttempt && lastAttempt.total ? lastAttempt.correct / lastAttempt.total : bestPct;
+
+    let priority = 0;
+    if (bestScore === null) priority += 80;
+    priority += Math.max(0, 1 - bestPct) * 60;
+    priority += Math.max(0, 1 - lastPct) * 25;
+    priority += Math.min(mistakes, 5) * 8;
+    if (bestPct >= 0.8 && mistakes === 0) priority -= 45;
+
+    let reason = 'Diese Serie passt gut als nächstes.';
+    if (mistakes > 0) reason = `${mistakes} Fehlerwort${mistakes === 1 ? '' : 'er'} warten hier.`;
+    else if (bestScore === null) reason = 'Diese Serie hast du noch nicht probiert.';
+    else if (bestPct < 0.8) reason = `Hier kannst du dein bestes Ergebnis ${bestScore}/${total} verbessern.`;
+    else reason = 'Kurze Wiederholung, damit es sicher bleibt.';
+
+    return { series, priority, reason };
+  });
+
+  candidates.sort((a, b) => b.priority - a.priority || a.series - b.series);
+  return candidates[0];
 }
 
 function buildDotHistory(seriesNum) {
