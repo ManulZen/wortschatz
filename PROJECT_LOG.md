@@ -5,6 +5,18 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-03 — Session 9: Class handoff prep
+
+**What changed:**
+- Added printable handoff file `freundin_pins.txt` with student URL, teacher URL, and all animal PINs
+- Generated QR codes for the student and teacher landing pages: `qr-schueler.png`, `qr-lehrerin.png`
+- Teacher dashboard now has quick links plus overview cards for active children, strong dictation attempts, locked accounts, and most common mistake
+- Teacher grid now shows all 25 animal accounts, including children with no data yet
+- Learning flow now restores mistake words from Firestore after login/reload
+- Normal dictation prioritizes earlier mistake words first, then continues with the remaining words
+
+---
+
 ## 2026-04-13 — Session 8: Account lockout
 
 **What changed:**

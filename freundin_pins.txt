@@ -1,0 +1,40 @@
+Wortschatz-Trainer - Zugang fuer die Klasse
+Stand: 2026-05-03
+
+Schuelerseite:
+https://wortschatz-vert.vercel.app/
+
+Lehreransicht:
+https://wortschatz-vert.vercel.app/?teacher
+
+Hinweis:
+Jedes Kind waehlt sein Tier und gibt den passenden 4-stelligen PIN ein.
+Nach 3 falschen Versuchen wird das Tier gesperrt und muss in der Lehreransicht entsperrt werden.
+
+Tier        PIN
+----------------
+Adler       4821
+Baer        7354
+Delfin      1963
+Elefant     5207
+Fuchs       8630
+Giraffe     3175
+Hamster     6492
+Igel        9048
+Jaguar      2716
+Koala       5839
+Loewe       1024
+Maus        7461
+Nashorn     3958
+Otter       6203
+Pinguin     8547
+Rabe        4172
+Schaf       9635
+Tiger       2089
+Uhu         5314
+Wolf        7806
+Zebra       1493
+Biber       6750
+Dachs       3287
+Flamingo    8914
+Kaenguru    4563
