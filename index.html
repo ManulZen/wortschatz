@@ -2630,7 +2630,7 @@ function renderAudioManager(num) {
   const words = SERIES[num] || [];
   const isAnyRecording = recorderState.recorder?.state === 'recording';
   box.innerHTML = `<h3>Aufnahmen Serie ${num}</h3>
-    <p class="audio-help">Erst aufnehmen, dann prüfen. Gespeicherte Aufnahmen werden beim Üben automatisch statt der Computerstimme abgespielt.</p>`;
+    <p class="audio-help">Erst aufnehmen, dann prüfen. Der Entwurf ist nur hier hörbar und geht erst nach Speichern live.</p>`;
 
   if (!canRecordAudio()) {
     const warn = document.createElement('p');
@@ -2650,7 +2650,7 @@ function renderAudioManager(num) {
     row.innerHTML = `<div class="audio-word-main">
       <strong>${esc(displayWord(entry))}</strong>
       <span class="audio-status ${isRecording ? 'recording' : meta ? 'ready' : ''}" id="audioStatus-${key}">
-        ${isRecording ? 'nimmt auf …' : hasDraft ? 'Aufnahme bereit zum Prüfen/Speichern' : meta ? 'gespeichert' : 'noch keine Aufnahme'}
+        ${isRecording ? 'nimmt auf …' : hasDraft ? 'Entwurf, noch nicht live' : meta ? 'gespeichert und live' : 'noch keine Aufnahme'}
       </span>
     </div>`;
 
