@@ -10,7 +10,8 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 **What changed:**
 - Added `AGENTS.md` as the agent-neutral project guide; `CLAUDE.md` now points to it for compatibility
 - Added a mandatory repo workflow: read `AGENTS.md`, read latest `PROJECT_LOG.md`, check git status, preserve unrelated changes, and update the log for notable behavior/data/architecture/UI changes
-- Made the child-facing UI more primary-school oriented: personal animal greeting, animal parade, colored animal selection, and colored series "learning island" cards with animal friends
+- Made the child-facing UI more primary-school oriented: personal animal greeting, animal parade, colored animal selection, and colored series "learning island" cards with non-animal symbols
+- Corrected the student/series identity split: child accounts keep animals exclusively; series now use non-animal symbols and color palettes that cycle automatically for new series
 - Improved click affordances throughout the student UI and teacher dashboard
 - Teacher dashboard student names now show a clear "Details" pill, hover indication, focus state, and keyboard activation
 - Recording panel now has a clear "Zuklappen" button

@@ -196,7 +196,7 @@ body {
   line-height: 1.25;
 }
 
-.series-animal {
+.series-symbol {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1445,7 +1445,7 @@ let SERIES = {};
 
 const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
 const ANIMALS = Object.keys(ANIMAL_EMOJI);
-const SERIES_FRIENDS = ['🦊','🐬','🦁','🦉','🦒','🐧','🐻','🦔','🐯','🦓','🐘','🐺'];
+const SERIES_SYMBOLS = ['⭐','☀️','📚','🚀','🌈','🎈','💎','🎯','🧩','🎵','🔍','🏅'];
 const SERIES_COLORS = [
   ['#1BA6A6', '#E8FFFF'],
   ['#FF6B6B', '#FFF0F0'],
@@ -1518,8 +1518,8 @@ function getAudioMeta(seriesNum, entry) {
   return SERIES_AUDIO[seriesNum]?.[audioKey(entry)] || null;
 }
 
-function seriesFriend(seriesNum) {
-  return SERIES_FRIENDS[(Number(seriesNum) - 1) % SERIES_FRIENDS.length];
+function seriesSymbol(seriesNum) {
+  return SERIES_SYMBOLS[(Number(seriesNum) - 1) % SERIES_SYMBOLS.length];
 }
 
 function seriesColors(seriesNum) {
@@ -1637,7 +1637,7 @@ function renderSeriesGrid() {
       btn.classList.add('completed');
     }
     const preview = esc(SERIES[i].slice(0, 3).map(getCanonical).join(', '));
-    btn.innerHTML = `<span class="series-animal">${seriesFriend(i)}</span>
+    btn.innerHTML = `<span class="series-symbol">${seriesSymbol(i)}</span>
       <span class="series-title">Serie ${i}</span>
       <span class="label">${preview}…</span>
       <span class="series-count">${total} Wörter</span>`;
@@ -1714,7 +1714,7 @@ function selectSeries(n) {
   const [color] = seriesColors(n);
   const modeScreen = document.getElementById('modeScreen');
   modeScreen.style.setProperty('--series-color', color);
-  document.getElementById('modeTitle').textContent = `${seriesFriend(n)} Serie ${n}`;
+  document.getElementById('modeTitle').textContent = `${seriesSymbol(n)} Serie ${n}`;
 
   const best = localStorage.getItem('ws_best_' + n);
   const total = SERIES[n].length;

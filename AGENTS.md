@@ -127,7 +127,9 @@ Quiz/flashcard results live in Firestore collection `results`.
 The student side is for primary-school children:
 
 - Make the child’s own animal identity prominent.
-- Prefer animal-led and color-led orientation over generic dashboards.
+- Student account animals are exclusive to children; do not reuse animal emojis as series/session icons.
+- Use non-animal symbols and colors for series/learning islands. New series automatically cycle through `SERIES_SYMBOLS` and `SERIES_COLORS`.
+- Prefer animal-led identity plus color-led series orientation over generic dashboards.
 - Use clear, large touch targets and obvious click states.
 - Keep teacher/admin surfaces calmer and denser than student surfaces.
 - Avoid merely adding gradients as “kid design”; use animals, progress, color grouping, and personal context.
