@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -126,6 +127,11 @@ body {
 .teacher-link:focus-visible {
   outline: none;
   box-shadow: var(--shadow-lg), var(--focus-ring);
+}
+
+.audio-controls button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow), var(--focus-ring);
 }
 
 .series-btn .label {
@@ -970,6 +976,71 @@ body {
 .series-manage-item .custom-badge { font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; }
 .series-del-btn { border: none; background: none; cursor: pointer; font-size: 1rem; opacity: 0.4; }
 .series-del-btn:hover { opacity: 1; }
+.audio-manager {
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin: 10px 0 14px;
+}
+.audio-manager h3 {
+  font-family: 'Fredoka', sans-serif;
+  color: var(--primary);
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+.audio-manager .audio-help {
+  color: var(--text-light);
+  font-size: 0.84rem;
+  margin-bottom: 12px;
+}
+.audio-word-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid #F0F0F0;
+}
+.audio-word-row:first-of-type { border-top: none; }
+.audio-word-main { min-width: 0; }
+.audio-word-main strong {
+  display: block;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+.audio-status {
+  display: inline-flex;
+  margin-top: 3px;
+  color: var(--text-light);
+  font-size: 0.78rem;
+}
+.audio-status.ready { color: var(--success); font-weight: 700; }
+.audio-status.recording { color: var(--error); font-weight: 800; }
+.audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.audio-controls button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background: #EEE;
+  color: var(--text);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.audio-controls button:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.audio-controls button:disabled { opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
+.audio-controls .record { background: var(--error); color: white; }
+.audio-controls .stop { background: var(--text); color: white; }
+.audio-controls .save { background: var(--success); color: white; }
+.audio-controls .play { background: var(--primary); color: white; }
 
 /* --- CONFETTI --- */
 .confetti-container {
@@ -1170,6 +1241,7 @@ firebase.initializeApp({
   appId: "1:778444536368:web:15a71a1d852743502b0bf5"
 });
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 // Default series — used to seed Firestore on first run and as offline fallback.
 const DEFAULT_SERIES = {
@@ -1207,6 +1279,17 @@ let lastWrongWords = {};  // keyed by series number
 let myAnimal = '';
 let selectedAnimal = '';
 let lockedAnimals = new Set();
+let SERIES_AUDIO = {};
+let audioCache = {};
+let audioManagerSeries = null;
+let recorderState = {
+  key: null,
+  recorder: null,
+  stream: null,
+  chunks: [],
+  blob: null,
+  mimeType: ''
+};
 
 // --- Helpers for multi-answer words ---
 function getCanonical(entry) {
@@ -1223,6 +1306,18 @@ function isCorrectAnswer(entry, typed) {
 function displayWord(entry) {
   if (Array.isArray(entry)) return entry.join(' / ');
   return entry;
+}
+
+function audioKey(entry) {
+  const canonical = getCanonical(entry).trim();
+  const bytes = new TextEncoder().encode(canonical);
+  let binary = '';
+  bytes.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function getAudioMeta(seriesNum, entry) {
+  return SERIES_AUDIO[seriesNum]?.[audioKey(entry)] || null;
 }
 
 function normalizeMistakes(record) {
@@ -1477,14 +1572,47 @@ function loadQuestion() {
   setTimeout(() => speakWord(), 300);
 }
 
-function speakCurrent(btnId, index) {
+async function speakCurrent(btnId, index) {
   const btn = document.getElementById(btnId);
   btn.classList.add('playing');
-  speak(getCanonical(words[index]), () => btn.classList.remove('playing'));
+  const entry = words[index];
+  const meta = getAudioMeta(currentSeries, entry);
+  if (meta && meta.url) {
+    try {
+      await playRecordedAudio(meta.url, btn);
+      return;
+    } catch(e) {
+      console.warn('Recorded audio failed, falling back to TTS:', e);
+    }
+  }
+  speak(getCanonical(entry), () => btn.classList.remove('playing'));
 }
 
 function speakWord() { speakCurrent('listenBtn', currentIndex); }
 function speakFlashWord() { speakCurrent('flashListenBtn', flashIndex); }
+
+function playRecordedAudio(url, btn) {
+  return new Promise((resolve, reject) => {
+    window.speechSynthesis.cancel();
+    const audio = audioCache[url] || new Audio(url);
+    audioCache[url] = audio;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.playbackRate = 1;
+    audio.onended = () => {
+      btn.classList.remove('playing');
+      resolve();
+    };
+    audio.onerror = () => {
+      btn.classList.remove('playing');
+      reject(new Error('Audio konnte nicht abgespielt werden.'));
+    };
+    audio.play().catch(err => {
+      btn.classList.remove('playing');
+      reject(err);
+    });
+  });
+}
 
 function checkAnswer() {
   if (answered) return;
@@ -2334,11 +2462,13 @@ async function loadSeries() {
   try {
     const snapshot = await db.collection('custom_series').get();
     SERIES = {};
+    SERIES_AUDIO = {};
     snapshot.forEach(doc => {
       const d = doc.data();
       const num = Number(doc.id);
       if (num && d.words && Array.isArray(d.words)) {
         SERIES[num] = d.words;
+        SERIES_AUDIO[num] = d.audio || {};
       }
     });
     // Seed any missing defaults (one-time migration, individual writes)
@@ -2347,6 +2477,7 @@ async function loadSeries() {
       console.log('Seeding missing series:', missing.join(', '));
       missing.forEach(num => {
         SERIES[num] = JSON.parse(JSON.stringify(DEFAULT_SERIES[num]));
+        SERIES_AUDIO[num] = {};
       });
       for (const num of missing) {
         try {
@@ -2359,6 +2490,7 @@ async function loadSeries() {
   } catch(e) {
     console.warn('Firestore unavailable, using defaults:', e);
     SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
+    SERIES_AUDIO = {};
   }
 }
 
@@ -2391,6 +2523,7 @@ async function addSeries() {
       created: Date.now()
     });
     SERIES[nextNum] = words;
+    SERIES_AUDIO[nextNum] = {};
     input.value = '';
     renderSeriesManager();
   } catch(e) {
@@ -2403,6 +2536,8 @@ async function deleteSeries(num) {
   try {
     await db.collection('custom_series').doc(String(num)).delete();
     delete SERIES[num];
+    delete SERIES_AUDIO[num];
+    if (audioManagerSeries === num) audioManagerSeries = null;
     renderSeriesManager();
   } catch(e) {
     alert('Fehler: ' + e.message);
@@ -2423,6 +2558,12 @@ function renderSeriesManager() {
     edit.title = 'Serie ' + num + ' bearbeiten';
     edit.onclick = () => editSeries(num);
     div.appendChild(edit);
+    const audio = document.createElement('button');
+    audio.className = 'series-del-btn';
+    audio.textContent = '🎙';
+    audio.title = 'Aufnahmen für Serie ' + num;
+    audio.onclick = () => toggleAudioManager(num);
+    div.appendChild(audio);
     const del = document.createElement('button');
     del.className = 'series-del-btn';
     del.textContent = '🗑';
@@ -2430,6 +2571,9 @@ function renderSeriesManager() {
     del.onclick = () => deleteSeries(num);
     div.appendChild(del);
     container.appendChild(div);
+    if (audioManagerSeries === num) {
+      container.appendChild(renderAudioManager(num));
+    }
   });
 }
 
@@ -2470,6 +2614,198 @@ function editSeries(num) {
   div.appendChild(save);
   div.appendChild(cancel);
   input.focus();
+}
+
+function toggleAudioManager(num) {
+  stopRecording();
+  audioManagerSeries = audioManagerSeries === num ? null : num;
+  renderSeriesManager();
+}
+
+function renderAudioManager(num) {
+  const box = document.createElement('div');
+  box.className = 'audio-manager';
+  const words = SERIES[num] || [];
+  const isAnyRecording = recorderState.recorder?.state === 'recording';
+  box.innerHTML = `<h3>Aufnahmen Serie ${num}</h3>
+    <p class="audio-help">Erst aufnehmen, dann prüfen. Gespeicherte Aufnahmen werden beim Üben automatisch statt der Computerstimme abgespielt.</p>`;
+
+  if (!canRecordAudio()) {
+    const warn = document.createElement('p');
+    warn.className = 'audio-help';
+    warn.style.color = 'var(--error)';
+    warn.textContent = 'Dieser Browser erlaubt keine direkte Aufnahme. Auf dem MacBook bitte Safari, Chrome oder Edge mit Mikrofonfreigabe verwenden.';
+    box.appendChild(warn);
+  }
+
+  words.forEach(entry => {
+    const key = audioKey(entry);
+    const meta = SERIES_AUDIO[num]?.[key];
+    const isRecording = recorderState.key === key && recorderState.recorder?.state === 'recording';
+    const hasDraft = recorderState.key === key && !!recorderState.blob;
+    const row = document.createElement('div');
+    row.className = 'audio-word-row';
+    row.innerHTML = `<div class="audio-word-main">
+      <strong>${esc(displayWord(entry))}</strong>
+      <span class="audio-status ${isRecording ? 'recording' : meta ? 'ready' : ''}" id="audioStatus-${key}">
+        ${isRecording ? 'nimmt auf …' : hasDraft ? 'Aufnahme bereit zum Prüfen/Speichern' : meta ? 'gespeichert' : 'noch keine Aufnahme'}
+      </span>
+    </div>`;
+
+    const controls = document.createElement('div');
+    controls.className = 'audio-controls';
+    controls.appendChild(audioButton(isRecording ? 'Stopp' : 'Aufnehmen', isRecording ? 'stop' : 'record', () => {
+      if (isRecording) stopRecording();
+      else startRecording(num, entry);
+    }, !canRecordAudio() || (isAnyRecording && !isRecording)));
+    controls.appendChild(audioButton('Prüfen', 'play', () => playTeacherAudioDraftOrSaved(num, entry), !hasDraft && !meta));
+    controls.appendChild(audioButton('Speichern', 'save', () => saveRecording(num, entry), !hasDraft));
+    if (meta) {
+      controls.appendChild(audioButton('Löschen', '', () => deleteRecording(num, entry), false));
+    }
+    row.appendChild(controls);
+    box.appendChild(row);
+  });
+  return box;
+}
+
+function audioButton(label, cls, onClick, disabled) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = label;
+  if (cls) btn.className = cls;
+  btn.disabled = !!disabled;
+  btn.onclick = onClick;
+  return btn;
+}
+
+function canRecordAudio() {
+  return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+}
+
+function pickRecordingMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2'
+  ];
+  return candidates.find(t => MediaRecorder.isTypeSupported?.(t)) || '';
+}
+
+function extensionForMimeType(type) {
+  if (type.includes('mp4')) return 'mp4';
+  if (type.includes('webm')) return 'webm';
+  if (type.includes('ogg')) return 'ogg';
+  return 'audio';
+}
+
+async function startRecording(num, entry) {
+  if (!canRecordAudio()) {
+    alert('Aufnahme ist in diesem Browser nicht verfügbar.');
+    return;
+  }
+  stopRecording();
+  const key = audioKey(entry);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = pickRecordingMimeType();
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    recorderState = { key, recorder, stream, chunks: [], blob: null, mimeType: recorder.mimeType || mimeType || 'audio/webm' };
+    recorder.ondataavailable = event => {
+      if (event.data && event.data.size > 0) recorderState.chunks.push(event.data);
+    };
+    recorder.onstop = () => {
+      recorderState.blob = new Blob(recorderState.chunks, { type: recorderState.mimeType });
+      recorderState.stream?.getTracks().forEach(track => track.stop());
+      renderSeriesManager();
+    };
+    recorder.start();
+    renderSeriesManager();
+  } catch(e) {
+    stopRecording();
+    alert('Mikrofon konnte nicht gestartet werden: ' + e.message);
+  }
+}
+
+function stopRecording() {
+  if (recorderState.recorder?.state === 'recording') {
+    recorderState.recorder.stop();
+    return;
+  }
+  recorderState.stream?.getTracks().forEach(track => track.stop());
+}
+
+function playTeacherAudioDraftOrSaved(num, entry) {
+  const key = audioKey(entry);
+  if (recorderState.key === key && recorderState.blob) {
+    playLocalBlob(recorderState.blob);
+    return;
+  }
+  const meta = SERIES_AUDIO[num]?.[key];
+  if (meta?.url) playLocalUrl(meta.url);
+}
+
+function playLocalBlob(blob) {
+  playLocalUrl(URL.createObjectURL(blob), true);
+}
+
+function playLocalUrl(url, revokeAfter) {
+  const audio = new Audio(url);
+  audio.onended = () => { if (revokeAfter) URL.revokeObjectURL(url); };
+  audio.play().catch(e => alert('Audio konnte nicht abgespielt werden: ' + e.message));
+}
+
+async function saveRecording(num, entry) {
+  const key = audioKey(entry);
+  if (recorderState.key !== key || !recorderState.blob) return;
+  const status = document.getElementById('audioStatus-' + key);
+  if (status) status.textContent = 'speichert …';
+  const blob = recorderState.blob;
+  const ext = extensionForMimeType(blob.type || recorderState.mimeType);
+  const path = `teacher-audio/series-${num}/${key}-${Date.now()}.${ext}`;
+  try {
+    const previous = SERIES_AUDIO[num]?.[key];
+    const ref = storage.ref(path);
+    await ref.put(blob, { contentType: blob.type || recorderState.mimeType });
+    const url = await ref.getDownloadURL();
+    const audioMap = Object.assign({}, SERIES_AUDIO[num] || {});
+    audioMap[key] = {
+      word: getCanonical(entry),
+      url,
+      path,
+      contentType: blob.type || recorderState.mimeType,
+      updated: Date.now()
+    };
+    await db.collection('custom_series').doc(String(num)).set({ audio: audioMap }, { merge: true });
+    if (previous?.path && previous.path !== path) {
+      storage.ref(previous.path).delete().catch(e => console.warn('Could not delete replaced audio file:', e));
+    }
+    SERIES_AUDIO[num] = audioMap;
+    recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '' };
+    renderSeriesManager();
+  } catch(e) {
+    alert('Aufnahme konnte nicht gespeichert werden: ' + e.message);
+    renderSeriesManager();
+  }
+}
+
+async function deleteRecording(num, entry) {
+  const key = audioKey(entry);
+  const meta = SERIES_AUDIO[num]?.[key];
+  if (!meta || !confirm(`Aufnahme für "${displayWord(entry)}" löschen?`)) return;
+  try {
+    if (meta.path) {
+      await storage.ref(meta.path).delete().catch(e => console.warn('Could not delete audio file:', e));
+    }
+    const audioMap = Object.assign({}, SERIES_AUDIO[num] || {});
+    delete audioMap[key];
+    await db.collection('custom_series').doc(String(num)).set({ audio: audioMap }, { merge: true });
+    SERIES_AUDIO[num] = audioMap;
+    renderSeriesManager();
+  } catch(e) {
+    alert('Aufnahme konnte nicht gelöscht werden: ' + e.message);
+  }
 }
 
 // Enter key support
