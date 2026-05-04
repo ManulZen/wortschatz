@@ -925,6 +925,51 @@ body {
   z-index: 3;
 }
 .animal-col { text-align: left !important; font-weight: 700; white-space: nowrap; }
+.animal-col.clickable {
+  cursor: pointer;
+  color: var(--primary);
+}
+.student-open-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 2px solid rgba(27,166,166,0.20);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #F7FFFF;
+  box-shadow: 0 2px 8px rgba(27,166,166,0.08);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.student-open-chip .open-hint {
+  color: var(--text-light);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+.student-open-chip .open-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.animal-col.clickable:hover .student-open-chip {
+  transform: translateX(2px);
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px rgba(27,166,166,0.16);
+  background: white;
+}
+.animal-col.clickable:focus-visible {
+  outline: none;
+}
+.animal-col.clickable:focus-visible .student-open-chip {
+  box-shadow: var(--focus-ring);
+  border-color: var(--primary);
+}
 .teacher-table th:last-child,
 .teacher-table td:last-child {
   width: 42px;
@@ -983,11 +1028,39 @@ body {
   padding: 16px;
   margin: 10px 0 14px;
 }
+.audio-manager-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .audio-manager h3 {
   font-family: 'Fredoka', sans-serif;
   color: var(--primary);
   font-size: 1.1rem;
   margin-bottom: 4px;
+}
+.audio-close-btn {
+  border: 2px solid rgba(27,166,166,0.18);
+  border-radius: 999px;
+  background: #F7FFFF;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.88rem;
+  padding: 7px 11px;
+  white-space: nowrap;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.audio-close-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+  background: white;
+}
+.audio-close-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .audio-manager .audio-help {
   color: var(--text-light);
@@ -2315,10 +2388,15 @@ function renderTeacherGrid(teacherData) {
     const row = tbody.insertRow();
     const nameCell = row.insertCell();
     nameCell.className = 'animal-col';
-    nameCell.textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
     if (teacherData[animal]) {
-      nameCell.style.cursor = 'pointer';
+      nameCell.classList.add('clickable');
+      nameCell.tabIndex = 0;
+      nameCell.title = 'Details von ' + animal + ' öffnen';
+      nameCell.innerHTML = `<span class="student-open-chip"><span>${esc((ANIMAL_EMOJI[animal] || '') + ' ' + animal)}</span><span class="open-hint">Details</span><span class="open-icon">›</span></span>`;
       nameCell.onclick = () => showStudentDetail(animal, teacherData[animal]);
+      nameCell.onkeydown = e => activateOnKey(e, () => showStudentDetail(animal, teacherData[animal]));
+    } else {
+      nameCell.textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
     }
 
     seriesKeys.forEach(s => {
@@ -2624,13 +2702,24 @@ function toggleAudioManager(num) {
   renderSeriesManager();
 }
 
+function closeAudioManager() {
+  stopRecording();
+  audioManagerSeries = null;
+  renderSeriesManager();
+}
+
 function renderAudioManager(num) {
   const box = document.createElement('div');
   box.className = 'audio-manager';
   const words = SERIES[num] || [];
   const isAnyRecording = recorderState.recorder?.state === 'recording';
-  box.innerHTML = `<h3>Aufnahmen Serie ${num}</h3>
-    <p class="audio-help">Erst aufnehmen, dann prüfen. Der Entwurf ist nur hier hörbar und geht erst nach Speichern live.</p>`;
+  box.innerHTML = `<div class="audio-manager-head">
+      <div>
+        <h3>Aufnahmen Serie ${num}</h3>
+        <p class="audio-help">Erst aufnehmen, dann prüfen. Der Entwurf ist nur hier hörbar und geht erst nach Speichern live.</p>
+      </div>
+      <button class="audio-close-btn" type="button" onclick="closeAudioManager()">Zuklappen</button>
+    </div>`;
 
   if (!canRecordAudio()) {
     const warn = document.createElement('p');
