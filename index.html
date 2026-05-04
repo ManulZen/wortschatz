@@ -33,9 +33,10 @@
 body {
   font-family: 'Nunito', sans-serif;
   background:
-    radial-gradient(circle at 18% 12%, rgba(255,209,102,0.42), transparent 26%),
-    radial-gradient(circle at 84% 18%, rgba(69,199,199,0.32), transparent 28%),
-    linear-gradient(180deg, var(--bg), #F7FCFB 58%, var(--bg-2));
+    linear-gradient(90deg, rgba(255,255,255,0.38) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.38) 1px, transparent 1px),
+    linear-gradient(180deg, #EAF7F7, #F7FCFB 54%, #FFF7D6);
+  background-size: 28px 28px, 28px 28px, auto;
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
@@ -57,21 +58,71 @@ body {
   font-size: clamp(2rem, 6vw, 3.2rem);
   color: var(--primary);
   margin-bottom: 8px;
-  letter-spacing: -1px;
+  letter-spacing: 0;
+  text-shadow: 0 2px 0 rgba(255,255,255,0.9);
 }
 
 .start-screen .subtitle {
   font-size: 1.1rem;
   color: var(--text-light);
-  margin-bottom: 40px;
+  margin-bottom: 24px;
+  font-weight: 800;
+}
+
+.animal-parade {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+
+.animal-parade span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: white;
+  border: 2px solid rgba(27,166,166,0.18);
+  box-shadow: var(--shadow);
+  font-size: 1.45rem;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.kid-greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  background: white;
+  border: 3px solid var(--accent);
+  box-shadow: var(--shadow);
+  padding: 9px 14px 9px 10px;
+  margin: 0 0 18px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.kid-greeting .my-animal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  font-size: 1.6rem;
 }
 
 .series-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 16px;
   width: 100%;
-  max-width: 640px;
+  max-width: 760px;
   margin-bottom: 32px;
 }
 
@@ -79,33 +130,34 @@ body {
   font-family: 'Fredoka', sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
-  border: 3px solid rgba(27,166,166,0.28);
-  border-radius: 16px;
-  padding: 20px 38px 18px 12px;
+  border: 3px solid var(--series-color, rgba(27,166,166,0.28));
+  border-radius: 18px;
+  padding: 14px 40px 14px 14px;
   cursor: pointer;
-  background: var(--card);
+  background: var(--series-soft, var(--card));
   color: var(--text);
   box-shadow: var(--shadow);
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
   position: relative;
   overflow: hidden;
-  min-height: 100px;
+  min-height: 132px;
   touch-action: manipulation;
+  text-align: left;
 }
 
 .series-btn::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: 5px;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
+  height: 8px;
+  background: var(--series-color, var(--primary));
 }
 
 .series-btn:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--primary);
-  background: #F7FFFF;
+  border-color: var(--series-color, var(--primary));
+  background: white;
 }
 
 .series-btn:active {
@@ -138,9 +190,43 @@ body {
   display: block;
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-top: 4px;
+  margin-top: 6px;
   font-family: 'Nunito', sans-serif;
-  font-weight: 400;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.series-animal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: white;
+  border: 2px solid rgba(255,255,255,0.95);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  font-size: 1.75rem;
+  margin: 4px 0 10px;
+}
+
+.series-title {
+  display: block;
+  color: var(--text);
+  font-size: 1.18rem;
+}
+
+.series-count {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.76);
+  color: var(--text);
+  padding: 4px 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 900;
 }
 
 .series-btn.completed { border-color: var(--success); }
@@ -202,9 +288,9 @@ body {
 
 .practice-btn {
   width: 100%;
-  border: 3px solid var(--primary);
+  border: 3px solid #6C63FF;
   border-radius: 18px;
-  background: linear-gradient(135deg, #E8FFFF, var(--accent-soft));
+  background: #F0EEFF;
   color: var(--text);
   box-shadow: var(--shadow);
   padding: 16px 18px;
@@ -226,7 +312,7 @@ body {
 .practice-btn strong {
   display: block;
   font-family: 'Fredoka', sans-serif;
-  color: var(--primary);
+  color: #5148D9;
   font-size: 1.15rem;
   margin-bottom: 3px;
 }
@@ -251,7 +337,8 @@ body {
   font-family: 'Fredoka', sans-serif;
   font-size: 1.8rem;
   margin-bottom: 8px;
-  color: var(--primary);
+  color: var(--series-color, var(--primary));
+  text-shadow: 0 2px 0 rgba(255,255,255,0.9);
 }
 
 .series-best {
@@ -281,6 +368,10 @@ body {
   touch-action: manipulation;
 }
 
+.mode-card:nth-child(1) { border-color: #1BA6A6; background: #E8FFFF; }
+.mode-card:nth-child(2) { border-color: #E74C3C; background: #FFF0F0; }
+.mode-card:nth-child(3) { border-color: #6C63FF; background: #F0EEFF; }
+
 .mode-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
@@ -301,7 +392,19 @@ body {
   color: var(--text-light);
 }
 
-.mode-icon { font-size: 2rem; margin-bottom: 8px; }
+.mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: white;
+  border: 2px solid rgba(255,255,255,0.9);
+  box-shadow: var(--shadow);
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
 
 /* --- QUIZ SCREEN --- */
 .quiz-screen {
@@ -370,20 +473,21 @@ body {
   max-width: 500px;
   text-align: center;
   margin-top: 20px;
+  border: 4px solid rgba(255,255,255,0.86);
 }
 
 .animal-companion {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 74px;
-  height: 74px;
+  width: 84px;
+  height: 84px;
   margin: -8px auto 14px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-soft), #E8FFFF);
   border: 3px solid white;
   box-shadow: var(--shadow);
-  font-size: 2.5rem;
+  font-size: 2.85rem;
 }
 
 .listen-btn {
@@ -745,16 +849,17 @@ body {
   border-radius: 14px;
   padding: 12px 6px;
   cursor: pointer;
-  background: var(--card);
+  background: var(--animal-soft, var(--card));
+  border-color: var(--animal-color, transparent);
   box-shadow: var(--shadow);
   transition: all 0.2s;
   text-align: center;
   position: relative;
   touch-action: manipulation;
 }
-.animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); background: #F7FFFF; }
+.animal-pick:hover { transform: translateY(-2px); border-color: var(--animal-color, var(--primary)); background: white; }
 .animal-pick:active { transform: translateY(0) scale(0.97); }
-.animal-pick.selected { border-color: var(--primary); background: #E8FFFF; }
+.animal-pick.selected { border-color: var(--animal-color, var(--primary)); background: white; box-shadow: var(--shadow-lg); }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
 .animal-pick.locked { opacity: 0.45; cursor: not-allowed; border-color: var(--error); background: #fff0f0; }
 .animal-pick.locked:hover { transform: none; border-color: var(--error); }
@@ -1142,6 +1247,9 @@ body {
 
 <!-- ANIMAL SELECT -->
 <div id="animalSelectScreen" class="start-screen hidden">
+  <div class="animal-parade" aria-hidden="true">
+    <span style="--tilt:-5deg">🦊</span><span style="--tilt:4deg">🐬</span><span style="--tilt:-3deg">🦁</span><span style="--tilt:5deg">🦉</span><span style="--tilt:-4deg">🦒</span>
+  </div>
   <h1>Wähle dein Tier</h1>
   <p class="subtitle">Das ist dein Name für den Trainer</p>
   <div class="animal-grid" id="animalGrid"></div>
@@ -1159,8 +1267,12 @@ body {
 
 <!-- START -->
 <div id="startScreen" class="start-screen hidden">
+  <div class="animal-parade" aria-hidden="true">
+    <span style="--tilt:-5deg">🦊</span><span style="--tilt:4deg">🐬</span><span style="--tilt:-3deg">🦁</span><span style="--tilt:5deg">🦉</span><span style="--tilt:-4deg">🦒</span>
+  </div>
   <h1>Wortschatz-Trainer</h1>
-  <p class="subtitle">Wähle eine Serie zum Üben</p>
+  <p class="subtitle">Wähle eine bunte Lerninsel</p>
+  <div class="kid-greeting" id="kidGreeting"></div>
   <div class="practice-pick hidden" id="practicePick"></div>
   <div class="series-grid" id="seriesGrid"></div>
   <p class="animal-badge" id="animalBadge"></p>
@@ -1333,6 +1445,19 @@ let SERIES = {};
 
 const ANIMAL_EMOJI = {'Adler':'🦅','Bär':'🐻','Delfin':'🐬','Elefant':'🐘','Fuchs':'🦊','Giraffe':'🦒','Hamster':'🐹','Igel':'🦔','Jaguar':'🐆','Koala':'🐨','Löwe':'🦁','Maus':'🐭','Nashorn':'🦏','Otter':'🦦','Pinguin':'🐧','Rabe':'🐦','Schaf':'🐑','Tiger':'🐯','Uhu':'🦉','Wolf':'🐺','Zebra':'🦓','Biber':'🦫','Dachs':'🦡','Flamingo':'🦩','Känguru':'🦘'};
 const ANIMALS = Object.keys(ANIMAL_EMOJI);
+const SERIES_FRIENDS = ['🦊','🐬','🦁','🦉','🦒','🐧','🐻','🦔','🐯','🦓','🐘','🐺'];
+const SERIES_COLORS = [
+  ['#1BA6A6', '#E8FFFF'],
+  ['#FF6B6B', '#FFF0F0'],
+  ['#6C63FF', '#F0EEFF'],
+  ['#F59E0B', '#FFF3D6'],
+  ['#2ECC71', '#E8F8F0'],
+  ['#EC4899', '#FFEAF6'],
+  ['#3498DB', '#EAF4FF'],
+  ['#8B5CF6', '#F3EAFF'],
+  ['#F97316', '#FFF0E5'],
+  ['#14B8A6', '#E6FFFB']
+];
 const ANIMAL_PINS = {
   'Adler':'4821','Bär':'7354','Delfin':'1963','Elefant':'5207','Fuchs':'8630',
   'Giraffe':'3175','Hamster':'6492','Igel':'9048','Jaguar':'2716','Koala':'5839',
@@ -1391,6 +1516,14 @@ function audioKey(entry) {
 
 function getAudioMeta(seriesNum, entry) {
   return SERIES_AUDIO[seriesNum]?.[audioKey(entry)] || null;
+}
+
+function seriesFriend(seriesNum) {
+  return SERIES_FRIENDS[(Number(seriesNum) - 1) % SERIES_FRIENDS.length];
+}
+
+function seriesColors(seriesNum) {
+  return SERIES_COLORS[(Number(seriesNum) - 1) % SERIES_COLORS.length];
 }
 
 function normalizeMistakes(record) {
@@ -1495,13 +1628,19 @@ function renderSeriesGrid() {
   Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(i => {
     const btn = document.createElement('button');
     btn.className = 'series-btn';
+    const [color, soft] = seriesColors(i);
+    btn.style.setProperty('--series-color', color);
+    btn.style.setProperty('--series-soft', soft);
     const best = localStorage.getItem('ws_best_' + i);
     const total = SERIES[i].length;
     if (best !== null && parseInt(best) >= Math.ceil(total * 0.8)) {
       btn.classList.add('completed');
     }
     const preview = esc(SERIES[i].slice(0, 3).map(getCanonical).join(', '));
-    btn.innerHTML = `Serie ${i}<span class="label">${preview}…</span>`;
+    btn.innerHTML = `<span class="series-animal">${seriesFriend(i)}</span>
+      <span class="series-title">Serie ${i}</span>
+      <span class="label">${preview}…</span>
+      <span class="series-count">${total} Wörter</span>`;
     if (best !== null) {
       btn.innerHTML += `<div class="stats-bar">${buildDotHistory(i)}</div>`;
     }
@@ -1572,7 +1711,10 @@ function buildDotHistory(seriesNum) {
 
 function selectSeries(n) {
   currentSeries = n;
-  document.getElementById('modeTitle').textContent = 'Serie ' + n;
+  const [color] = seriesColors(n);
+  const modeScreen = document.getElementById('modeScreen');
+  modeScreen.style.setProperty('--series-color', color);
+  document.getElementById('modeTitle').textContent = `${seriesFriend(n)} Serie ${n}`;
 
   const best = localStorage.getItem('ws_best_' + n);
   const total = SERIES[n].length;
@@ -1946,8 +2088,12 @@ function renderAnimalGrid() {
   document.getElementById('animalPinSection').classList.add('hidden');
   ANIMALS.forEach(animal => {
     const locked = lockedAnimals.has(animal);
+    const idx = ANIMALS.indexOf(animal);
+    const [color, soft] = SERIES_COLORS[idx % SERIES_COLORS.length];
     const btn = document.createElement('button');
     btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '') + (locked ? ' locked' : '');
+    btn.style.setProperty('--animal-color', color);
+    btn.style.setProperty('--animal-soft', soft);
     btn.innerHTML = locked
       ? `<span class="emoji">🔒</span>${esc(animal)}`
       : `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
@@ -1996,6 +2142,10 @@ function loginAs(animal, pin) {
   localStorage.setItem('ws_pin', pin);
   myAnimal = animal;
   selectedAnimal = '';
+  const greeting = document.getElementById('kidGreeting');
+  if (greeting) {
+    greeting.innerHTML = `<span class="my-animal">${ANIMAL_EMOJI[animal] || ''}</span><span>Hallo ${esc(animal)}, such dir eine Lerninsel aus.</span>`;
+  }
   document.getElementById('animalBadge').textContent = (ANIMAL_EMOJI[animal] || '') + ' ' + animal;
   renderSeriesGrid();
   showScreen('startScreen');
