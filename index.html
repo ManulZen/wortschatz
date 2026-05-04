@@ -1376,14 +1376,16 @@ async function sha256(str) {
 function speak(text, cb) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-CH';
-  u.rate = 0.7;
+  u.lang = 'de-DE';
+  u.rate = 0.72;
   const voices = window.speechSynthesis.getVoices();
-  // Prefer high-quality voices: Google > network voices > any de voice
   const deVoices = voices.filter(v => v.lang.startsWith('de'));
-  const picked = deVoices.find(v => v.name.includes('Google')) ||
+  const deDeVoices = deVoices.filter(v => v.lang === 'de-DE');
+  const picked = deDeVoices.find(v => v.name.includes('Google')) ||
+                 deDeVoices.find(v => !v.localService) ||
+                 deDeVoices[0] ||
+                 deVoices.find(v => v.name.includes('Google')) ||
                  deVoices.find(v => !v.localService) ||
-                 deVoices.find(v => v.lang === 'de-CH') ||
                  deVoices[0];
   if (picked) u.voice = picked;
   if (cb) u.onend = cb;
