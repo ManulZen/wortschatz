@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-04 — Session 13: Recording stuck-state guard
+
+**What changed:**
+- Added an explicit recording save state so teacher audio controls are disabled while an upload is in progress
+- Replaced the bare Storage `put()` await with a Firebase upload task that reports upload progress in the row status
+- Added a 60-second upload timeout and a 20-second Firestore metadata timeout so the UI can recover from stalled network/Firebase calls instead of staying on `speichert ...`
+- Kept the local draft recording after a failed save so the teacher can retry without recording the word again
+
+**Important notes:**
+- If the timeout appears on the teacher device, the likely causes are network, Firebase Storage rules, or blocked Storage access; the draft should remain available for retry
+
+---
+
 ## 2026-05-04 — Session 12: Series action button upgrade
 
 **What changed:**

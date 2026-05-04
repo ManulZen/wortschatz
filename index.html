@@ -1293,6 +1293,7 @@ body {
 }
 .audio-status.ready { color: var(--success); font-weight: 700; }
 .audio-status.recording { color: var(--error); font-weight: 800; }
+.audio-status.saving { color: var(--primary); font-weight: 800; }
 .audio-controls {
   display: flex;
   flex-wrap: wrap;
@@ -1584,7 +1585,8 @@ let recorderState = {
   stream: null,
   chunks: [],
   blob: null,
-  mimeType: ''
+  mimeType: '',
+  saving: false
 };
 
 // --- Helpers for multi-answer words ---
@@ -3008,12 +3010,13 @@ function renderAudioManager(num) {
     const meta = SERIES_AUDIO[num]?.[key];
     const isRecording = recorderState.key === key && recorderState.recorder?.state === 'recording';
     const hasDraft = recorderState.key === key && !!recorderState.blob;
+    const isSaving = recorderState.key === key && recorderState.saving;
     const row = document.createElement('div');
     row.className = 'audio-word-row';
     row.innerHTML = `<div class="audio-word-main">
       <strong>${esc(displayWord(entry))}</strong>
-      <span class="audio-status ${isRecording ? 'recording' : meta ? 'ready' : ''}" id="audioStatus-${key}">
-        ${isRecording ? 'nimmt auf …' : hasDraft ? 'Entwurf, noch nicht live' : meta ? 'gespeichert und live' : 'noch keine Aufnahme'}
+      <span class="audio-status ${isRecording ? 'recording' : isSaving ? 'saving' : meta ? 'ready' : ''}" id="audioStatus-${key}">
+        ${isRecording ? 'nimmt auf …' : isSaving ? 'speichert …' : hasDraft ? 'Entwurf, noch nicht live' : meta ? 'gespeichert und live' : 'noch keine Aufnahme'}
       </span>
     </div>`;
 
@@ -3022,11 +3025,11 @@ function renderAudioManager(num) {
     controls.appendChild(audioButton(isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten', isRecording ? 'stop' : 'record', () => {
       if (isRecording) stopRecording();
       else startRecording(num, entry);
-    }, !canRecordAudio() || (isAnyRecording && !isRecording)));
-    controls.appendChild(audioButton(hasDraft ? 'Entwurf anhören' : 'Live anhören', 'play', () => playTeacherAudioDraftOrSaved(num, entry), !hasDraft && !meta));
-    controls.appendChild(audioButton('Entwurf live schalten', 'save', () => saveRecording(num, entry), !hasDraft));
+    }, recorderState.saving || !canRecordAudio() || (isAnyRecording && !isRecording)));
+    controls.appendChild(audioButton(hasDraft ? 'Entwurf anhören' : 'Live anhören', 'play', () => playTeacherAudioDraftOrSaved(num, entry), recorderState.saving || (!hasDraft && !meta)));
+    controls.appendChild(audioButton(isSaving ? 'Wird gespeichert …' : 'Entwurf live schalten', 'save', () => saveRecording(num, entry), recorderState.saving || !hasDraft));
     if (meta) {
-      controls.appendChild(audioButton('Live-Aufnahme löschen', 'delete', () => deleteRecording(num, entry), false));
+      controls.appendChild(audioButton('Live-Aufnahme löschen', 'delete', () => deleteRecording(num, entry), recorderState.saving));
     }
     row.appendChild(controls);
     box.appendChild(row);
@@ -3070,17 +3073,48 @@ function recordingContentType(blob, fallback) {
 }
 
 function resetRecorderState() {
-  recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '' };
+  recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '', saving: false };
 }
 
 async function saveSeriesAudioMap(num, audioMap) {
-  await db.collection('custom_series').doc(String(num)).set(
+  await withTimeout(db.collection('custom_series').doc(String(num)).set(
     { audio: audioMap },
     { mergeFields: ['audio'] }
-  );
+  ), 20000, 'Firestore hat zu lange nicht geantwortet.');
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function uploadAudioBlob(ref, blob, metadata, status) {
+  return new Promise((resolve, reject) => {
+    const task = ref.put(blob, metadata);
+    const timeout = setTimeout(() => {
+      task.cancel();
+      reject(new Error('Upload hat zu lange gedauert. Bitte Verbindung prüfen und erneut speichern.'));
+    }, 60000);
+
+    task.on('state_changed', snapshot => {
+      if (!status || !snapshot.totalBytes) return;
+      const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+      status.textContent = `lädt hoch … ${pct}%`;
+    }, error => {
+      clearTimeout(timeout);
+      reject(error);
+    }, () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
 }
 
 async function startRecording(num, entry) {
+  if (recorderState.saving) return;
   if (!canRecordAudio()) {
     alert('Aufnahme ist in diesem Browser nicht verfügbar.');
     return;
@@ -3091,7 +3125,7 @@ async function startRecording(num, entry) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = pickRecordingMimeType();
     const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    recorderState = { key, recorder, stream, chunks: [], blob: null, mimeType: recorder.mimeType || mimeType || 'audio/webm' };
+    recorderState = { key, recorder, stream, chunks: [], blob: null, mimeType: recorder.mimeType || mimeType || 'audio/webm', saving: false };
     recorder.ondataavailable = event => {
       if (event.data && event.data.size > 0) recorderState.chunks.push(event.data);
     };
@@ -3138,21 +3172,24 @@ function playLocalUrl(url, revokeAfter) {
 
 async function saveRecording(num, entry) {
   const key = audioKey(entry);
-  if (recorderState.key !== key || !recorderState.blob) return;
-  const status = document.getElementById('audioStatus-' + key);
-  if (status) status.textContent = 'speichert …';
+  if (recorderState.saving || recorderState.key !== key || !recorderState.blob) return;
   const blob = recorderState.blob;
   if (blob.size === 0) {
     alert('Die Aufnahme ist leer. Bitte noch einmal aufnehmen und danach speichern.');
     return;
   }
+  recorderState.saving = true;
+  renderSeriesManager();
+  const status = document.getElementById('audioStatus-' + key);
+  if (status) status.textContent = 'bereitet Upload vor …';
   const contentType = recordingContentType(blob, recorderState.mimeType);
   const ext = extensionForMimeType(contentType);
   const path = `teacher-audio/series-${num}/${key}-${Date.now()}.${ext}`;
   try {
     const previous = SERIES_AUDIO[num]?.[key];
     const ref = storage.ref(path);
-    await ref.put(blob, { contentType });
+    await uploadAudioBlob(ref, blob, { contentType }, status);
+    if (status) status.textContent = 'speichert Link …';
     const url = await ref.getDownloadURL();
     const audioMap = Object.assign({}, SERIES_AUDIO[num] || {});
     audioMap[key] = {
@@ -3171,6 +3208,7 @@ async function saveRecording(num, entry) {
     renderSeriesManager();
   } catch(e) {
     alert('Aufnahme konnte nicht gespeichert werden: ' + e.message);
+    recorderState.saving = false;
     renderSeriesManager();
   }
 }
