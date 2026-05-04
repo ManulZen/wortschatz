@@ -1111,7 +1111,8 @@ body {
 .sp-mistake-pair .count { color: var(--text-light); font-weight: 700; }
 
 .series-manage-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
@@ -1122,10 +1123,106 @@ body {
   font-size: 0.9rem;
 }
 .series-manage-item .snum { font-family: 'Fredoka', sans-serif; font-weight: 700; color: var(--primary); min-width: 40px; }
-.series-manage-item .words { flex: 1; color: var(--text-light); }
+.series-manage-item .words { color: var(--text-light); min-width: 0; }
 .series-manage-item .custom-badge { font-size: 0.7rem; background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; }
-.series-del-btn { border: none; background: none; cursor: pointer; font-size: 1rem; opacity: 0.4; }
-.series-del-btn:hover { opacity: 1; }
+.series-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.series-action-btn {
+  --action-color: var(--primary);
+  --action-bg: #F4FFFF;
+  --action-border: rgba(27,166,166,0.24);
+  --action-icon-bg: rgba(27,166,166,0.14);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 2px solid var(--action-border);
+  border-radius: 11px;
+  background: var(--action-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 7px 10px 7px 8px;
+  box-shadow: 0 2px 0 rgba(37,49,59,0.04);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease;
+  white-space: nowrap;
+}
+.series-action-btn .action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--action-icon-bg);
+  color: var(--action-color);
+  font-size: 0.92rem;
+  line-height: 1;
+}
+.series-action-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--action-color);
+  box-shadow: 0 8px 18px rgba(37,49,59,0.12);
+  background: white;
+}
+.series-action-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 0 rgba(37,49,59,0.04);
+}
+.series-action-btn.edit {
+  --action-color: #5B6EE1;
+  --action-bg: #F3F5FF;
+  --action-border: rgba(91,110,225,0.24);
+  --action-icon-bg: rgba(91,110,225,0.14);
+}
+.series-action-btn.danger {
+  --action-color: var(--error);
+  --action-bg: #FFF4F2;
+  --action-border: rgba(231,76,60,0.28);
+  --action-icon-bg: rgba(231,76,60,0.12);
+}
+.series-action-btn.primary {
+  --action-color: var(--primary);
+  --action-bg: #E8FFFF;
+  --action-border: rgba(27,166,166,0.34);
+  --action-icon-bg: rgba(27,166,166,0.16);
+}
+.series-action-btn.save {
+  --action-color: var(--success);
+  --action-bg: #F0FFF6;
+  --action-border: rgba(46,204,113,0.3);
+  --action-icon-bg: rgba(46,204,113,0.15);
+}
+.series-action-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.series-audio-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-light);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+@media (max-width: 680px) {
+  .series-manage-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .series-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .series-action-btn {
+    flex: 1 1 120px;
+    justify-content: center;
+  }
+}
 .audio-manager {
   background: var(--card);
   border-radius: 16px;
@@ -1219,6 +1316,7 @@ body {
 .audio-controls .stop { background: var(--text); color: white; }
 .audio-controls .save { background: var(--success); color: white; }
 .audio-controls .play { background: var(--primary); color: white; }
+.audio-controls .delete { background: #FFF0F0; color: var(--error); border: 1px solid rgba(231,76,60,0.28); }
 
 /* --- CONFETTI --- */
 .confetti-container {
@@ -2779,32 +2877,63 @@ function renderSeriesManager() {
   container.innerHTML = '';
   Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(num => {
     const words = SERIES[num];
+    const audioCount = Object.keys(SERIES_AUDIO[num] || {}).length;
     const div = document.createElement('div');
     div.className = 'series-manage-item';
-    div.innerHTML = `<span class="snum">S${num}</span><span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})</span>`;
-    const edit = document.createElement('button');
-    edit.className = 'series-del-btn';
-    edit.textContent = '✏️';
-    edit.title = 'Serie ' + num + ' bearbeiten';
-    edit.onclick = () => editSeries(num);
-    div.appendChild(edit);
-    const audio = document.createElement('button');
-    audio.className = 'series-del-btn';
-    audio.textContent = '🎙';
-    audio.title = 'Aufnahmen für Serie ' + num;
-    audio.onclick = () => toggleAudioManager(num);
-    div.appendChild(audio);
-    const del = document.createElement('button');
-    del.className = 'series-del-btn';
-    del.textContent = '🗑';
-    del.title = 'Serie ' + num + ' löschen';
-    del.onclick = () => deleteSeries(num);
-    div.appendChild(del);
+    div.innerHTML = `<span class="snum">S${num}</span>
+      <span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})
+        <span class="series-audio-status">${audioCount}/${words.length} Aufnahmen live</span>
+      </span>`;
+    const actions = document.createElement('div');
+    actions.className = 'series-actions';
+    const audio = seriesActionButton(
+      audioManagerSeries === num ? 'Zuklappen' : 'Aufnahmen',
+      '🎙',
+      'primary',
+      'Wörter für Serie ' + num + ' aufnehmen und live schalten',
+      () => toggleAudioManager(num)
+    );
+    actions.appendChild(audio);
+    const edit = seriesActionButton(
+      'Bearbeiten',
+      '✎',
+      'edit',
+      'Serie ' + num + ' bearbeiten',
+      () => editSeries(num)
+    );
+    actions.appendChild(edit);
+    const del = seriesActionButton(
+      'Löschen',
+      '⌫',
+      'danger',
+      'Serie ' + num + ' löschen',
+      () => deleteSeries(num)
+    );
+    actions.appendChild(del);
+    div.appendChild(actions);
     container.appendChild(div);
     if (audioManagerSeries === num) {
       container.appendChild(renderAudioManager(num));
     }
   });
+}
+
+function seriesActionButton(label, icon, variant, title, onClick) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'series-action-btn' + (variant ? ' ' + variant : '');
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'action-icon';
+  iconSpan.setAttribute('aria-hidden', 'true');
+  iconSpan.textContent = icon;
+  const labelSpan = document.createElement('span');
+  labelSpan.textContent = label;
+  btn.appendChild(iconSpan);
+  btn.appendChild(labelSpan);
+  btn.onclick = onClick;
+  return btn;
 }
 
 function editSeries(num) {
@@ -2820,13 +2949,9 @@ function editSeries(num) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'word-input';
-  input.style.cssText = 'flex:1;font-size:0.9rem;text-align:left;font-weight:400;margin:0 8px';
+  input.style.cssText = 'min-width:0;font-size:0.9rem;text-align:left;font-weight:400;margin:0';
   input.value = serialized;
-  const save = document.createElement('button');
-  save.className = 'check-btn';
-  save.textContent = '💾';
-  save.style.cssText = 'padding:6px 12px;font-size:1rem';
-  save.onclick = async () => {
+  const save = seriesActionButton('Speichern', '✓', 'save', 'Änderungen an Serie ' + num + ' speichern', async () => {
     const newWords = parseSeriesInput(input.value);
     if (newWords.length < 2) { alert('Mindestens 2 Wörter.'); return; }
     try {
@@ -2834,15 +2959,14 @@ function editSeries(num) {
       SERIES[num] = newWords;
       renderSeriesManager();
     } catch(e) { alert('Fehler: ' + e.message); }
-  };
-  const cancel = document.createElement('button');
-  cancel.className = 'series-del-btn';
-  cancel.textContent = '✖';
-  cancel.title = 'Abbrechen';
-  cancel.onclick = () => renderSeriesManager();
+  });
+  const cancel = seriesActionButton('Abbrechen', '×', '', 'Bearbeiten abbrechen', () => renderSeriesManager());
   div.appendChild(input);
-  div.appendChild(save);
-  div.appendChild(cancel);
+  const actions = document.createElement('div');
+  actions.className = 'series-actions';
+  actions.appendChild(save);
+  actions.appendChild(cancel);
+  div.appendChild(actions);
   input.focus();
 }
 
@@ -2866,7 +2990,7 @@ function renderAudioManager(num) {
   box.innerHTML = `<div class="audio-manager-head">
       <div>
         <h3>Aufnahmen Serie ${num}</h3>
-        <p class="audio-help">Erst aufnehmen, dann prüfen. Der Entwurf ist nur hier hörbar und geht erst nach Speichern live.</p>
+        <p class="audio-help">Pro Wort: aufnehmen, Entwurf anhören, dann live schalten. Vorher hören Kinder weiter die Computerstimme.</p>
       </div>
       <button class="audio-close-btn" type="button" onclick="closeAudioManager()">Zuklappen</button>
     </div>`;
@@ -2895,14 +3019,14 @@ function renderAudioManager(num) {
 
     const controls = document.createElement('div');
     controls.className = 'audio-controls';
-    controls.appendChild(audioButton(isRecording ? 'Stopp' : 'Aufnehmen', isRecording ? 'stop' : 'record', () => {
+    controls.appendChild(audioButton(isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten', isRecording ? 'stop' : 'record', () => {
       if (isRecording) stopRecording();
       else startRecording(num, entry);
     }, !canRecordAudio() || (isAnyRecording && !isRecording)));
-    controls.appendChild(audioButton('Prüfen', 'play', () => playTeacherAudioDraftOrSaved(num, entry), !hasDraft && !meta));
-    controls.appendChild(audioButton('Speichern', 'save', () => saveRecording(num, entry), !hasDraft));
+    controls.appendChild(audioButton(hasDraft ? 'Entwurf anhören' : 'Live anhören', 'play', () => playTeacherAudioDraftOrSaved(num, entry), !hasDraft && !meta));
+    controls.appendChild(audioButton('Entwurf live schalten', 'save', () => saveRecording(num, entry), !hasDraft));
     if (meta) {
-      controls.appendChild(audioButton('Löschen', '', () => deleteRecording(num, entry), false));
+      controls.appendChild(audioButton('Live-Aufnahme löschen', 'delete', () => deleteRecording(num, entry), false));
     }
     row.appendChild(controls);
     box.appendChild(row);
@@ -2939,6 +3063,21 @@ function extensionForMimeType(type) {
   if (type.includes('webm')) return 'webm';
   if (type.includes('ogg')) return 'ogg';
   return 'audio';
+}
+
+function recordingContentType(blob, fallback) {
+  return blob.type || fallback || 'audio/webm';
+}
+
+function resetRecorderState() {
+  recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '' };
+}
+
+async function saveSeriesAudioMap(num, audioMap) {
+  await db.collection('custom_series').doc(String(num)).set(
+    { audio: audioMap },
+    { mergeFields: ['audio'] }
+  );
 }
 
 async function startRecording(num, entry) {
@@ -3003,27 +3142,32 @@ async function saveRecording(num, entry) {
   const status = document.getElementById('audioStatus-' + key);
   if (status) status.textContent = 'speichert …';
   const blob = recorderState.blob;
-  const ext = extensionForMimeType(blob.type || recorderState.mimeType);
+  if (blob.size === 0) {
+    alert('Die Aufnahme ist leer. Bitte noch einmal aufnehmen und danach speichern.');
+    return;
+  }
+  const contentType = recordingContentType(blob, recorderState.mimeType);
+  const ext = extensionForMimeType(contentType);
   const path = `teacher-audio/series-${num}/${key}-${Date.now()}.${ext}`;
   try {
     const previous = SERIES_AUDIO[num]?.[key];
     const ref = storage.ref(path);
-    await ref.put(blob, { contentType: blob.type || recorderState.mimeType });
+    await ref.put(blob, { contentType });
     const url = await ref.getDownloadURL();
     const audioMap = Object.assign({}, SERIES_AUDIO[num] || {});
     audioMap[key] = {
       word: getCanonical(entry),
       url,
       path,
-      contentType: blob.type || recorderState.mimeType,
+      contentType,
       updated: Date.now()
     };
-    await db.collection('custom_series').doc(String(num)).set({ audio: audioMap }, { merge: true });
+    await saveSeriesAudioMap(num, audioMap);
     if (previous?.path && previous.path !== path) {
       storage.ref(previous.path).delete().catch(e => console.warn('Could not delete replaced audio file:', e));
     }
     SERIES_AUDIO[num] = audioMap;
-    recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '' };
+    resetRecorderState();
     renderSeriesManager();
   } catch(e) {
     alert('Aufnahme konnte nicht gespeichert werden: ' + e.message);
@@ -3041,7 +3185,7 @@ async function deleteRecording(num, entry) {
     }
     const audioMap = Object.assign({}, SERIES_AUDIO[num] || {});
     delete audioMap[key];
-    await db.collection('custom_series').doc(String(num)).set({ audio: audioMap }, { merge: true });
+    await saveSeriesAudioMap(num, audioMap);
     SERIES_AUDIO[num] = audioMap;
     renderSeriesManager();
   } catch(e) {

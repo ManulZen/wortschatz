@@ -5,6 +5,29 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-04 — Session 12: Series action button upgrade
+
+**What changed:**
+- Upgraded the teacher series edit/delete/action buttons from plain text pills to clearer icon+label controls with distinct edit, delete, save, and recording variants
+- Added stronger hover, active, and focus states while keeping the teacher dashboard compact
+- Added a mobile layout rule so series action buttons wrap into usable full-width controls on narrow screens
+
+---
+
+## 2026-05-04 — Session 11: Recording save fix
+
+**What changed:**
+- Fixed teacher recording metadata writes so the `audio` map is replaced as one top-level field instead of being deep-merged by Firestore; this keeps saving/replacing/deleting recordings consistent
+- Made recording upload metadata more robust by falling back to a safe audio content type when browsers provide an empty MIME type
+- Added a guard against saving empty recording blobs, prompting the teacher to record again instead
+- Preserved the interrupted UI work that clarifies recording actions and live/draft status
+
+**Important notes:**
+- Real microphone upload still needs browser testing on the teacher device; this environment can verify syntax and serve the page, but cannot grant microphone access
+- If saving still fails with a Firebase permission message, check Firebase Storage rules for `teacher-audio/series-{num}/...`
+
+---
+
 ## 2026-05-04 — Session 10: Audio, student UI, and agent docs
 
 **What changed:**
