@@ -24,6 +24,7 @@
   --error-bg: #FDE8E8;
   --text: #25313B;
   --text-light: #66737A;
+  --focus-ring: 0 0 0 4px rgba(255, 209, 102, 0.62);
   --shadow: 0 4px 20px rgba(0,0,0,0.08);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
 }
@@ -77,16 +78,18 @@ body {
   font-family: 'Fredoka', sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
-  border: 3px solid transparent;
+  border: 3px solid rgba(27,166,166,0.28);
   border-radius: 16px;
-  padding: 18px 12px;
+  padding: 20px 38px 18px 12px;
   cursor: pointer;
   background: var(--card);
   color: var(--text);
   box-shadow: var(--shadow);
-  transition: all 0.2s;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
   position: relative;
   overflow: hidden;
+  min-height: 100px;
+  touch-action: manipulation;
 }
 
 .series-btn::before {
@@ -101,6 +104,28 @@ body {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary);
+  background: #F7FFFF;
+}
+
+.series-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--shadow);
+}
+
+.series-btn:focus-visible,
+.practice-btn:focus-visible,
+.mode-card:focus-visible,
+.back-btn:focus-visible,
+.listen-btn:focus-visible,
+.check-btn:focus-visible,
+.next-btn:focus-visible,
+.results-actions button:focus-visible,
+.flash-nav button:focus-visible,
+.animal-pick:focus-visible,
+.refresh-btn:focus-visible,
+.teacher-link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-lg), var(--focus-ring);
 }
 
 .series-btn .label {
@@ -120,6 +145,27 @@ body {
   color: var(--success);
   font-size: 1rem;
   font-weight: 700;
+}
+
+.series-btn:not(.completed)::after,
+.practice-btn::after,
+.mode-card::after {
+  content: '›';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(255,209,102,0.36);
 }
 
 /* --- STATS BAR --- */
@@ -158,13 +204,18 @@ body {
   padding: 16px 18px;
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  position: relative;
+  padding-right: 54px;
+  touch-action: manipulation;
 }
 
 .practice-btn:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
+
+.practice-btn:active { transform: translateY(0) scale(0.99); }
 
 .practice-btn strong {
   display: block;
@@ -213,20 +264,25 @@ body {
 
 .mode-card {
   background: var(--card);
-  border: 3px solid transparent;
+  border: 3px solid rgba(27,166,166,0.25);
   border-radius: 20px;
-  padding: 24px;
+  padding: 24px 56px 24px 24px;
   cursor: pointer;
   box-shadow: var(--shadow);
-  transition: all 0.2s;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
   text-align: left;
+  position: relative;
+  touch-action: manipulation;
 }
 
 .mode-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary);
+  background: #F7FFFF;
 }
+
+.mode-card:active { transform: translateY(0) scale(0.99); }
 
 .mode-card h3 {
   font-family: 'Fredoka', sans-serif;
@@ -262,12 +318,18 @@ body {
 .back-btn {
   font-family: 'Fredoka', sans-serif;
   font-size: 1rem;
-  background: none;
-  border: none;
-  color: var(--text-light);
+  background: rgba(255,255,255,0.72);
+  border: 2px solid rgba(27,166,166,0.18);
+  border-radius: 999px;
+  color: var(--text);
   cursor: pointer;
-  padding: 8px;
+  padding: 8px 12px;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  touch-action: manipulation;
 }
+
+.back-btn:hover { background: white; border-color: var(--primary); transform: translateY(-1px); }
+.back-btn:active { transform: translateY(0) scale(0.97); }
 
 .progress-bar-wrap {
   flex: 1;
@@ -322,20 +384,21 @@ body {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  border: none;
+  border: 5px solid white;
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
   font-size: 2.5rem;
   cursor: pointer;
-  box-shadow: 0 6px 24px rgba(27,166,166,0.35);
+  box-shadow: 0 6px 24px rgba(27,166,166,0.35), 0 0 0 10px rgba(27,166,166,0.10);
   transition: all 0.2s;
   margin: 0 auto 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
-.listen-btn:hover { transform: scale(1.08); }
+.listen-btn:hover { transform: scale(1.08); box-shadow: 0 8px 30px rgba(27,166,166,0.42), 0 0 0 12px rgba(27,166,166,0.14); }
 .listen-btn:active { transform: scale(0.95); }
 .listen-btn.playing { animation: pulse 0.8s ease infinite; }
 
@@ -388,9 +451,11 @@ body {
   box-shadow: 0 4px 16px rgba(27,166,166,0.28);
   transition: all 0.2s;
   white-space: nowrap;
+  touch-action: manipulation;
 }
 
-.check-btn:hover { transform: translateY(-2px); }
+.check-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 20px rgba(27,166,166,0.34); }
+.check-btn:active { transform: translateY(0) scale(0.97); }
 .check-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
 
 .feedback {
@@ -425,9 +490,11 @@ body {
   margin-top: 16px;
   box-shadow: 0 4px 16px rgba(46,204,113,0.3);
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
-.next-btn:hover { transform: translateY(-2px); }
+.next-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 20px rgba(46,204,113,0.36); }
+.next-btn:active { transform: translateY(0) scale(0.97); }
 
 /* --- RESULTS --- */
 .results-screen {
@@ -532,6 +599,7 @@ body {
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
 .btn-retry { background: var(--primary); color: white; box-shadow: 0 4px 16px rgba(27,166,166,0.28); }
@@ -554,6 +622,27 @@ body {
   cursor: pointer;
   transform-style: preserve-3d;
   transition: transform 0.5s;
+  touch-action: manipulation;
+}
+
+.flashcard::after {
+  content: '↻';
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--text);
+  border: 3px solid white;
+  box-shadow: var(--shadow);
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.1rem;
 }
 
 .flashcard.flipped { transform: rotateY(180deg); }
@@ -578,6 +667,7 @@ body {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
   font-size: 3rem;
+  border: 4px solid rgba(255,255,255,0.82);
 }
 
 .flashcard-back {
@@ -604,11 +694,13 @@ body {
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
 .flash-prev { background: #EEE; color: var(--text); }
 .flash-next { background: var(--primary); color: white; }
 .flash-nav button:hover { transform: translateY(-2px); }
+.flash-nav button:active { transform: translateY(0) scale(0.97); }
 .flash-nav button:disabled { opacity: 0.4; cursor: default; transform: none; }
 
 /* --- HIDDEN --- */
@@ -652,8 +744,10 @@ body {
   transition: all 0.2s;
   text-align: center;
   position: relative;
+  touch-action: manipulation;
 }
-.animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); }
+.animal-pick:hover { transform: translateY(-2px); border-color: var(--primary); background: #F7FFFF; }
+.animal-pick:active { transform: translateY(0) scale(0.97); }
 .animal-pick.selected { border-color: var(--primary); background: #E8FFFF; }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
 .animal-pick.locked { opacity: 0.45; cursor: not-allowed; border-color: var(--error); background: #fff0f0; }
@@ -854,6 +948,11 @@ body {
 .sp-flash { font-size: 0.8rem; color: var(--text-light); }
 .sp-mistakes { display: flex; flex-wrap: wrap; gap: 6px; }
 .sp-mistake-tag { font-size: 0.78rem; padding: 3px 8px; border-radius: 8px; background: var(--error-bg); color: var(--error); font-weight: 600; }
+.sp-mistake-pairs { display: grid; gap: 5px; margin-top: 8px; }
+.sp-mistake-pair { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.78rem; }
+.sp-mistake-pair .typed { color: var(--error); text-decoration: line-through; font-weight: 700; }
+.sp-mistake-pair .correct { color: var(--success); font-weight: 800; }
+.sp-mistake-pair .count { color: var(--text-light); font-weight: 700; }
 
 .series-manage-item {
   display: flex;
@@ -929,17 +1028,17 @@ body {
   <h2 id="modeTitle">Serie 1</h2>
   <p class="series-best" id="seriesBest"></p>
   <div class="mode-cards">
-    <div class="mode-card" onclick="startQuiz(false)">
+    <div class="mode-card" role="button" tabindex="0" onclick="startQuiz(false)" onkeydown="activateOnKey(event, () => startQuiz(false))">
       <div class="mode-icon">✏️</div>
       <h3>Diktat-Modus</h3>
       <p>Höre das Wort und schreibe es richtig. Du bekommst sofort eine Rückmeldung.</p>
     </div>
-    <div class="mode-card" id="retryWrongCard" onclick="startQuiz(true)">
+    <div class="mode-card" id="retryWrongCard" role="button" tabindex="0" onclick="startQuiz(true)" onkeydown="activateOnKey(event, () => startQuiz(true))">
       <div class="mode-icon">🔁</div>
       <h3>Fehler üben</h3>
       <p>Nur die Wörter aus dem letzten Versuch, die falsch waren.</p>
     </div>
-    <div class="mode-card" onclick="startFlashcards()">
+    <div class="mode-card" role="button" tabindex="0" onclick="startFlashcards()" onkeydown="activateOnKey(event, startFlashcards)">
       <div class="mode-icon">🤔</div>
       <h3>Karteikarten</h3>
       <p>Höre das Wort, stelle es dir vor, dann decke die Karte auf.</p>
@@ -985,7 +1084,7 @@ body {
     <button class="listen-btn" id="flashListenBtn" onclick="speakFlashWord()">🔊</button>
     <p class="hint-text">Höre das Wort, stelle es dir vor, dann tippe auf die Karte.</p>
     <div class="flashcard-area">
-      <div class="flashcard" id="flashcard" onclick="flipCard()">
+      <div class="flashcard" id="flashcard" role="button" tabindex="0" onclick="flipCard()" onkeydown="activateOnKey(event, flipCard)">
         <div class="flashcard-face flashcard-front">?</div>
         <div class="flashcard-face flashcard-back" id="flashcardBack"></div>
       </div>
@@ -1126,8 +1225,51 @@ function displayWord(entry) {
   return entry;
 }
 
+function normalizeMistakes(record) {
+  const source = Array.isArray(record.mistakes) ? record.mistakes : [];
+  const details = Array.isArray(record.mistakeDetails) ? record.mistakeDetails : null;
+
+  if (source.length > 0 && typeof source[0] === 'object') {
+    return source
+      .map(m => ({
+        word: String(m.word || '').trim(),
+        typed: m.typed == null ? null : String(m.typed).trim()
+      }))
+      .filter(m => m.word);
+  }
+
+  if (details) {
+    return details
+      .map(m => ({
+        word: String(m.word || '').trim(),
+        typed: m.typed == null || String(m.typed).trim() === '' ? null : String(m.typed).trim()
+      }))
+      .filter(m => m.word);
+  }
+
+  return source
+    .map(word => ({ word: String(word || '').trim(), typed: null }))
+    .filter(m => m.word);
+}
+
+function mistakeWords(record) {
+  return normalizeMistakes(record).map(m => m.word);
+}
+
+function countMistakeWords(record, counts) {
+  mistakeWords(record).forEach(word => {
+    counts[word] = (counts[word] || 0) + 1;
+  });
+}
+
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function activateOnKey(event, action) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  action();
 }
 
 async function sha256(str) {
@@ -1415,8 +1557,10 @@ function showResults() {
   const pct = Math.round((correctCount / total) * 100);
 
   const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
-  const mistakeWords = wrongEntries.map(getCanonical);
-  saveToFirestore({ correct: correctCount, total, mistakes: mistakeWords, mode: 'quiz' })
+  const mistakes = results
+    .filter(r => !r.correct)
+    .map(r => ({ word: getCanonical(r.entry), typed: r.typed || null }));
+  saveToFirestore({ correct: correctCount, total, mistakes, mode: 'quiz' })
     .then(() => syncFromFirestore());
 
   // Save wrong words for retry
@@ -1666,7 +1810,7 @@ async function syncFromFirestore() {
       if (!d.series) return;
       if (!bySeries[d.series]) bySeries[d.series] = [];
       bySeries[d.series].push({ correct: d.correct || 0, total: d.total || 0, date: d.ts || 0 });
-      (d.mistakes || []).forEach(word => {
+      mistakeWords(d).forEach(word => {
         if (!mistakeCounts[d.series]) mistakeCounts[d.series] = {};
         mistakeCounts[d.series][word] = (mistakeCounts[d.series][word] || 0) + 1;
       });
@@ -1690,7 +1834,7 @@ async function syncFromFirestore() {
         .map(([word]) => word);
       localStorage.setItem('ws_mistakes_' + s, JSON.stringify(commonMistakes));
       lastWrongWords[s] = commonMistakes
-        .map(word => SERIES[s]?.find(entry => getCanonical(entry) === word))
+        .map(word => SERIES[s]?.find(entry => getCanonical(entry) === word || displayWord(entry) === word))
         .filter(Boolean);
     });
     renderSeriesGrid();
@@ -1739,7 +1883,8 @@ async function loadTeacherDashboard() {
     updateTeacherLinks();
     const snapshot = await db.collection('results').get();
     const docs = [];
-    snapshot.forEach(doc => docs.push(doc.data()));
+    snapshot.forEach(doc => docs.push(Object.assign({ _ref: doc.ref }, doc.data())));
+    await migrateMistakeFormat(docs);
     docs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
     const teacherData = {};
@@ -1752,7 +1897,11 @@ async function loadTeacherDashboard() {
       if (r.mode === 'flashcard') {
         teacherData[r.animal][s].flashcards++;
       } else {
-        teacherData[r.animal][s].quizzes.push({ correct: r.correct, total: r.total, mistakes: r.mistakes || [] });
+        teacherData[r.animal][s].quizzes.push({
+          correct: r.correct,
+          total: r.total,
+          mistakes: normalizeMistakes(r)
+        });
       }
     });
 
@@ -1773,6 +1922,28 @@ async function loadTeacherDashboard() {
   }
 }
 
+async function migrateMistakeFormat(docs) {
+  const legacyDocs = docs.filter(d => {
+    if (d.mode === 'flashcard' || !Array.isArray(d.mistakes)) return false;
+    return d.mistakeDetails || d.mistakes.some(m => typeof m !== 'object');
+  });
+  if (legacyDocs.length === 0) return;
+
+  for (let i = 0; i < legacyDocs.length; i += 450) {
+    const batch = db.batch();
+    legacyDocs.slice(i, i + 450).forEach(d => {
+      const normalized = normalizeMistakes(d).map(m => ({ word: m.word, typed: m.typed || null }));
+      batch.update(d._ref, {
+        mistakes: normalized,
+        mistakeDetails: firebase.firestore.FieldValue.delete()
+      });
+      d.mistakes = normalized;
+      delete d.mistakeDetails;
+    });
+    await batch.commit();
+  }
+}
+
 function updateTeacherLinks() {
   const base = window.location.origin + window.location.pathname;
   document.getElementById('studentLink').href = base;
@@ -1790,7 +1961,7 @@ function renderTeacherOverview(teacherData, docs) {
     return total > 0 && (Number(d.correct) || 0) / total >= 0.8;
   }).length;
   const allMistakes = {};
-  quizDocs.forEach(d => (d.mistakes || []).forEach(w => { allMistakes[w] = (allMistakes[w] || 0) + 1; }));
+  quizDocs.forEach(d => countMistakeWords(d, allMistakes));
   const topMistake = Object.entries(allMistakes).sort((a, b) => b[1] - a[1])[0];
 
   overview.innerHTML = [
@@ -1831,7 +2002,7 @@ function renderTeacherAnalysis(teacherData, docs) {
     seriesStats[series].total += total;
     seriesStats[series].attempts++;
 
-    (d.mistakes || []).forEach(w => { mistakeCounts[w] = (mistakeCounts[w] || 0) + 1; });
+    countMistakeWords(d, mistakeCounts);
   });
 
   const support = Object.entries(animalStats)
@@ -2035,7 +2206,7 @@ function renderTeacherGrid(teacherData) {
         const pct = c / t;
         const cls = pct >= 0.8 ? 'cell-done' : pct >= 0.5 ? 'cell-mid' : 'cell-poor';
 
-        const allMistakes = d.quizzes.flatMap(q => q.mistakes || []);
+        const allMistakes = d.quizzes.flatMap(q => mistakeWords(q));
         const freq = {};
         allMistakes.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
         const mistakeList = Object.entries(freq).sort((a, b) => b[1] - a[1]);
@@ -2095,7 +2266,7 @@ function showStudentDetail(animal, data) {
     const d = data[s];
     totalQuizzes += d.quizzes.length;
     totalFlash += d.flashcards;
-    d.quizzes.forEach(q => (q.mistakes || []).forEach(w => { globalMistakes[w] = (globalMistakes[w] || 0) + 1; }));
+    d.quizzes.forEach(q => countMistakeWords(q, globalMistakes));
   });
 
   // Per-series cards
@@ -2110,9 +2281,12 @@ function showStudentDetail(animal, data) {
     }).join('');
 
     const seriesMistakes = {};
-    d.quizzes.forEach(q => (q.mistakes || []).forEach(w => { seriesMistakes[w] = (seriesMistakes[w] || 0) + 1; }));
+    d.quizzes.forEach(q => countMistakeWords(q, seriesMistakes));
     const mistakeTags = Object.entries(seriesMistakes).sort((a, b) => b[1] - a[1])
       .map(([w, n]) => `<span class="sp-mistake-tag">${esc(w)}${n > 1 ? ' ' + n + '\u00d7' : ''}</span>`).join('');
+    const mistakePairs = summarizeMistakeDetails(d.quizzes)
+      .map(m => `<div class="sp-mistake-pair"><span class="typed">${esc(m.typed || 'leer')}</span><span>→</span><span class="correct">${esc(m.word)}</span>${m.count > 1 ? `<span class="count">${m.count}\u00d7</span>` : ''}</div>`)
+      .join('');
 
     const flash = d.flashcards > 0 ? `<div class="sp-flash">\ud83c\udccf ${d.flashcards} Karteikarten</div>` : '';
 
@@ -2120,6 +2294,7 @@ function showStudentDetail(animal, data) {
       <div class="sp-series-head">Serie ${s}</div>
       ${attempts ? '<div class="sp-attempts">' + attempts + '</div>' : ''}
       ${mistakeTags ? '<div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
+      ${mistakePairs ? '<div class="sp-mistake-pairs">' + mistakePairs + '</div>' : ''}
       ${flash}
     </div>`;
   }).join('');
@@ -2138,6 +2313,16 @@ function showStudentDetail(animal, data) {
     ${globalHTML}
   </div>`;
   overlay.classList.remove('hidden');
+}
+
+function summarizeMistakeDetails(quizzes) {
+  const counts = {};
+  quizzes.forEach(q => normalizeMistakes(q).forEach(m => {
+    const key = `${m.typed}\u0001${m.word}`;
+    if (!counts[key]) counts[key] = { typed: m.typed, word: m.word, count: 0 };
+    counts[key].count++;
+  }));
+  return Object.values(counts).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
 }
 
 function closeStudentDetail() {
