@@ -1577,6 +1577,7 @@ let myAnimal = '';
 let selectedAnimal = '';
 let lockedAnimals = new Set();
 let SERIES_AUDIO = {};
+let SERIES_REFRESHED_AT = {};
 let audioCache = {};
 let audioManagerSeries = null;
 let recorderState = {
@@ -1809,8 +1810,9 @@ function buildDotHistory(seriesNum) {
   }).join('');
 }
 
-function selectSeries(n) {
+async function selectSeries(n) {
   currentSeries = n;
+  await refreshSeriesFromFirestore(n, true);
   const [color] = seriesColors(n);
   const modeScreen = document.getElementById('modeScreen');
   modeScreen.style.setProperty('--series-color', color);
@@ -1845,7 +1847,8 @@ function goHome() {
 }
 
 // --- QUIZ MODE ---
-function startQuiz(wrongOnly) {
+async function startQuiz(wrongOnly) {
+  await refreshSeriesFromFirestore(currentSeries, true);
   if (wrongOnly && lastWrongWords[currentSeries] && lastWrongWords[currentSeries].length > 0) {
     words = shuffle([...lastWrongWords[currentSeries]]);
   } else {
@@ -1892,6 +1895,7 @@ function loadQuestion() {
 async function speakCurrent(btnId, index) {
   const btn = document.getElementById(btnId);
   btn.classList.add('playing');
+  await refreshSeriesFromFirestore(currentSeries);
   const entry = words[index];
   const meta = getAudioMeta(currentSeries, entry);
   if (meta && meta.url) {
@@ -2055,7 +2059,8 @@ function showResults() {
 }
 
 // --- FLASHCARD MODE ---
-function startFlashcards() {
+async function startFlashcards() {
+  await refreshSeriesFromFirestore(currentSeries, true);
   words = shuffle([...SERIES[currentSeries]]);
   flashIndex = 0;
   updateAnimalCompanions();
@@ -2793,12 +2798,14 @@ async function loadSeries() {
     const snapshot = await db.collection('custom_series').get();
     SERIES = {};
     SERIES_AUDIO = {};
+    SERIES_REFRESHED_AT = {};
     snapshot.forEach(doc => {
       const d = doc.data();
       const num = Number(doc.id);
       if (num && d.words && Array.isArray(d.words)) {
         SERIES[num] = d.words;
         SERIES_AUDIO[num] = d.audio || {};
+        SERIES_REFRESHED_AT[num] = Date.now();
       }
     });
     // Seed any missing defaults (one-time migration, individual writes)
@@ -2808,6 +2815,7 @@ async function loadSeries() {
       missing.forEach(num => {
         SERIES[num] = JSON.parse(JSON.stringify(DEFAULT_SERIES[num]));
         SERIES_AUDIO[num] = {};
+        SERIES_REFRESHED_AT[num] = Date.now();
       });
       for (const num of missing) {
         try {
@@ -2821,6 +2829,26 @@ async function loadSeries() {
     console.warn('Firestore unavailable, using defaults:', e);
     SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
     SERIES_AUDIO = {};
+    SERIES_REFRESHED_AT = {};
+  }
+}
+
+async function refreshSeriesFromFirestore(num, force) {
+  const now = Date.now();
+  if (!force && now - (SERIES_REFRESHED_AT[num] || 0) < 15000) return;
+  try {
+    const doc = await withTimeout(
+      db.collection('custom_series').doc(String(num)).get(),
+      8000,
+      'Serie konnte gerade nicht aktualisiert werden.'
+    );
+    SERIES_REFRESHED_AT[num] = Date.now();
+    if (!doc.exists) return;
+    const data = doc.data();
+    if (Array.isArray(data.words)) SERIES[num] = data.words;
+    SERIES_AUDIO[num] = data.audio || {};
+  } catch(e) {
+    console.warn('Could not refresh series ' + num + ' before playback:', e.message);
   }
 }
 

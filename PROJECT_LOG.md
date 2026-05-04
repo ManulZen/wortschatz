@@ -5,6 +5,18 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-04 — Session 14: Student audio refresh
+
+**What changed:**
+- Student views now refresh the selected series from Firestore when a series is opened, when quiz/flashcard practice starts, and periodically before playback
+- This prevents already-open student tabs from using stale `SERIES_AUDIO` metadata after the teacher switches a recording live
+- Refresh failures fall back silently to the existing local series data and TTS fallback, so children are not blocked by a transient Firestore read failure
+
+**Important notes:**
+- If a recording still does not play after this refresh, check whether the Firestore `custom_series/{num}.audio` entry exists and whether its Storage download URL can be opened from the student device
+
+---
+
 ## 2026-05-04 — Session 13: Recording stuck-state guard
 
 **What changed:**
