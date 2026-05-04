@@ -5,6 +5,32 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-04 — Session 10: Audio, student UI, and agent docs
+
+**What changed:**
+- Added `AGENTS.md` as the agent-neutral project guide; `CLAUDE.md` now points to it for compatibility
+- Added a mandatory repo workflow: read `AGENTS.md`, read latest `PROJECT_LOG.md`, check git status, preserve unrelated changes, and update the log for notable behavior/data/architecture/UI changes
+- Made the child-facing UI more primary-school oriented: personal animal greeting, animal parade, colored animal selection, and colored series "learning island" cards with animal friends
+- Improved click affordances throughout the student UI and teacher dashboard
+- Teacher dashboard student names now show a clear "Details" pill, hover indication, focus state, and keyboard activation
+- Recording panel now has a clear "Zuklappen" button
+- Added optional teacher recordings per word:
+  - Records with browser `MediaRecorder`
+  - Stores files in Firebase Storage under `teacher-audio/series-{num}/...`
+  - Stores recording metadata in `custom_series/{num}.audio`
+  - Draft recordings remain local and are not live until `Speichern`
+  - Student playback tries teacher recording first and falls back to TTS if absent or broken
+- Switched fallback TTS from Swiss German locale (`de-CH`) to Hochdeutsch (`de-DE`) because Swiss primary schools teach standard German spelling/dictation
+- Normalized quiz mistakes to a single object format: `mistakes: [{word, typed}]`
+- Legacy string mistakes are migrated from the teacher dashboard to `{word, typed: null}` and old `mistakeDetails` is removed
+
+**Important notes:**
+- Real recording must be tested on the teacher's MacBook/browser because this environment has no browser/microphone
+- Firebase Storage rules may need adjustment if saving recordings returns permission errors
+- The playful UI direction is intentionally iterative; avoid future "just add gradients" changes and use animals, color grouping, child identity, and clear progress instead
+
+---
+
 ## 2026-05-03 — Session 9: Class handoff prep
 
 **What changed:**
