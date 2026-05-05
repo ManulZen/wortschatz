@@ -523,6 +523,43 @@ body {
   margin-bottom: 24px;
 }
 
+.hint-tools {
+  display: flex;
+  justify-content: center;
+  margin: -8px 0 14px;
+}
+
+.hint-btn {
+  border: 2px solid rgba(27,166,166,0.20);
+  border-radius: 12px;
+  background: #F7FFFF;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 8px 14px;
+  box-shadow: 0 2px 0 rgba(37,49,59,0.04);
+}
+
+.hint-btn:hover,
+.hint-btn:focus-visible {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
+.hint-box {
+  max-width: 440px;
+  margin: 0 auto 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #FFF8E1;
+  color: #745200;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .input-row {
   display: flex;
   gap: 10px;
@@ -1101,6 +1138,10 @@ body {
 .sp-attempt.good { background: var(--success-bg); color: var(--success); }
 .sp-attempt.mid { background: #FFF3E0; color: #E67E22; }
 .sp-attempt.poor { background: var(--error-bg); color: var(--error); }
+.sp-timeline { display: grid; gap: 5px; margin: 6px 0; }
+.sp-event { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: var(--text-light); }
+.sp-event strong { color: var(--text); }
+.sp-hint-used { color: #8A5D00; font-weight: 800; }
 .sp-flash { font-size: 0.8rem; color: var(--text-light); }
 .sp-mistakes { display: flex; flex-wrap: wrap; gap: 6px; }
 .sp-mistake-tag { font-size: 0.78rem; padding: 3px 8px; border-radius: 8px; background: var(--error-bg); color: var(--error); font-weight: 600; }
@@ -1415,8 +1456,12 @@ body {
     <div class="animal-companion" id="quizAnimal"></div>
     <button class="listen-btn" id="listenBtn" onclick="speakWord()">🔊</button>
     <p class="hint-text">Drücke auf den Lautsprecher und schreibe das Wort.</p>
+    <div class="hint-tools">
+      <button class="hint-btn hidden" id="hintBtn" type="button" onclick="showNextHint()">Tipp</button>
+    </div>
+    <div class="hint-box hidden" id="hintBox"></div>
     <div class="input-row">
-      <input type="text" class="word-input" id="wordInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="…">
+      <input type="text" class="word-input" id="wordInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="…" oninput="updateHintAvailability()">
       <button class="check-btn" id="checkBtn" onclick="checkAnswer()">Prüfen</button>
     </div>
     <div class="feedback hidden" id="feedback"></div>
@@ -1571,8 +1616,10 @@ let currentIndex = 0;
 let words = [];       // current quiz word list (entries may be string or array)
 let results = [];
 let answered = false;
+let hintState = { level: 0, max: 0 };
 let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
+let lastMistakeCounts = {};  // keyed by series number, then canonical word
 let myAnimal = '';
 let selectedAnimal = '';
 let lockedAnimals = new Set();
@@ -1692,6 +1739,16 @@ function mistakeWords(record) {
   return normalizeMistakes(record).map(m => m.word);
 }
 
+function normalizeHints(record) {
+  const source = Array.isArray(record.hintsUsed) ? record.hintsUsed : [];
+  return source
+    .map(h => ({
+      word: String(h.word || '').trim(),
+      level: Math.max(1, Math.min(3, Number(h.level) || 1))
+    }))
+    .filter(h => h.word);
+}
+
 function countMistakeWords(record, counts) {
   mistakeWords(record).forEach(word => {
     counts[word] = (counts[word] || 0) + 1;
@@ -1708,6 +1765,95 @@ function activateOnKey(event, action) {
   action();
 }
 
+function formatDateTime(ts) {
+  if (!ts) return 'Zeit unbekannt';
+  return new Date(ts).toLocaleString('de-CH', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatRelativePractice(ts) {
+  if (!ts) return 'noch nie';
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
+  if (ts >= startToday.getTime()) return 'heute, ' + new Date(ts).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+  if (ts >= startToday.getTime() - day) return 'gestern, ' + new Date(ts).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+  return new Date(ts).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function normalizeWordKey(word) {
+  return String(word || '').trim().toLowerCase();
+}
+
+function mistakeCountForEntry(seriesNum, entry) {
+  const key = normalizeWordKey(getCanonical(entry));
+  return lastMistakeCounts[seriesNum]?.[key] || 0;
+}
+
+function maxHintLevelForMistakes(count) {
+  if (count >= 4) return 3;
+  if (count >= 3) return 2;
+  if (count >= 2) return 1;
+  return 0;
+}
+
+function wordLength(word) {
+  return Array.from(String(word || '').replace(/\s+/g, '')).length;
+}
+
+function findWordPattern(word) {
+  const lower = normalizeWordKey(word);
+  const patterns = ['sch', 'ch', 'ie', 'ei', 'eu', 'au', 'äu', 'ck', 'tz', 'ss', 'ß'];
+  const found = patterns.find(p => lower.includes(p));
+  if (found) return found;
+
+  const chars = Array.from(lower);
+  for (let i = 1; i < chars.length; i++) {
+    if (chars[i] === chars[i - 1] && /[a-zäöü]/.test(chars[i])) return 'doppelter Buchstabe';
+  }
+  if (lower.includes('h')) return 'h';
+  return '';
+}
+
+function wordShape(word) {
+  const chars = Array.from(String(word || '').trim());
+  const letters = chars.filter(ch => /\S/.test(ch));
+  if (letters.length <= 2) return letters.map((ch, i) => i === 0 ? ch : '_').join(' ');
+
+  let seenFirstLetter = false;
+  return chars.map((ch, index) => {
+    if (!/\S/.test(ch)) return ' ';
+    if (!seenFirstLetter) {
+      seenFirstLetter = true;
+      return ch;
+    }
+    const remainingLetters = chars.slice(index + 1).filter(c => /\S/.test(c));
+    if (remainingLetters.length === 0 && letters.length >= 5) return ch;
+    return '_';
+  }).join(' ');
+}
+
+function buildHint(entry, level) {
+  const word = getCanonical(entry);
+  if (level === 1) {
+    return `Tipp 1: Beginnt mit „${Array.from(word)[0] || ''}“ und hat ${wordLength(word)} Buchstaben.`;
+  }
+
+  const pattern = findWordPattern(word);
+  if (level === 2) {
+    return pattern
+      ? `Tipp 2: Achte besonders auf „${pattern}“.`
+      : 'Tipp 2: Sprich das Wort langsam in Silben und hoere genau auf die Mitte.';
+  }
+
+  return `Tipp 3: Wortform: ${wordShape(word)}`;
+}
+
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -1717,14 +1863,14 @@ async function sha256(str) {
 function speak(text, cb) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE';
+  u.lang = 'de-CH';
   u.rate = 0.72;
   const voices = window.speechSynthesis.getVoices();
   const deVoices = voices.filter(v => v.lang.startsWith('de'));
-  const deDeVoices = deVoices.filter(v => v.lang === 'de-DE');
-  const picked = deDeVoices.find(v => v.name.includes('Google')) ||
-                 deDeVoices.find(v => !v.localService) ||
-                 deDeVoices[0] ||
+  const deChVoices = deVoices.filter(v => v.lang === 'de-CH');
+  const picked = deChVoices.find(v => v.name.includes('Google')) ||
+                 deChVoices.find(v => !v.localService) ||
+                 deChVoices[0] ||
                  deVoices.find(v => v.name.includes('Google')) ||
                  deVoices.find(v => !v.localService) ||
                  deVoices[0];
@@ -1913,6 +2059,11 @@ function entryKey(entry) {
 
 function loadQuestion() {
   answered = false;
+  const entry = words[currentIndex];
+  hintState = {
+    level: 0,
+    max: maxHintLevelForMistakes(mistakeCountForEntry(currentSeries, entry))
+  };
   const input = document.getElementById('wordInput');
   input.value = '';
   input.className = 'word-input';
@@ -1920,10 +2071,36 @@ function loadQuestion() {
   input.focus();
   document.getElementById('feedback').classList.add('hidden');
   document.getElementById('correction').classList.add('hidden');
+  document.getElementById('hintBox').classList.add('hidden');
+  document.getElementById('hintBox').textContent = '';
   document.getElementById('nextBtn').classList.add('hidden');
   document.getElementById('checkBtn').disabled = false;
+  updateHintAvailability();
   updateProgress();
   setTimeout(() => speakWord(), 300);
+}
+
+function updateHintAvailability() {
+  const hintBtn = document.getElementById('hintBtn');
+  const input = document.getElementById('wordInput');
+  if (!hintBtn || !input) return;
+
+  const canAsk = !answered && hintState.max > hintState.level && input.value.trim().length > 0;
+  hintBtn.classList.toggle('hidden', !canAsk);
+  if (canAsk) {
+    const nextLevel = hintState.level + 1;
+    hintBtn.textContent = nextLevel === 1 ? 'Tipp' : `Noch ein Tipp (${nextLevel}/${hintState.max})`;
+  }
+}
+
+function showNextHint() {
+  if (answered || hintState.level >= hintState.max) return;
+  hintState.level++;
+  const hintBox = document.getElementById('hintBox');
+  hintBox.classList.remove('hidden');
+  hintBox.textContent = buildHint(words[currentIndex], hintState.level);
+  updateHintAvailability();
+  document.getElementById('wordInput').focus();
 }
 
 async function speakCurrent(btnId, index) {
@@ -1993,7 +2170,7 @@ function checkAnswer() {
   const finalCorrect = correct || capitalizationFix;
   const savedTyped = capitalizationFix ? capitalizedTyped : typed;
 
-  results.push({ entry, typed: savedTyped, correct: finalCorrect });
+  results.push({ entry, typed: savedTyped, correct: finalCorrect, hintLevel: hintState.level });
 
   if (finalCorrect) {
     input.className = 'word-input correct';
@@ -2011,6 +2188,7 @@ function checkAnswer() {
 
   input.disabled = true;
   document.getElementById('checkBtn').disabled = true;
+  document.getElementById('hintBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.remove('hidden');
   updateProgress();
 }
@@ -2043,7 +2221,10 @@ function showResults() {
   const mistakes = results
     .filter(r => !r.correct)
     .map(r => ({ word: getCanonical(r.entry), typed: r.typed || null }));
-  saveToFirestore({ correct: correctCount, total, mistakes, mode: 'quiz' })
+  const hintsUsed = results
+    .filter(r => r.hintLevel > 0)
+    .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel }));
+  saveToFirestore({ correct: correctCount, total, mistakes, hintsUsed, mode: 'quiz' })
     .then(() => syncFromFirestore());
 
   // Save wrong words for retry
@@ -2061,10 +2242,13 @@ function showResults() {
   const title = document.getElementById('resultsTitle');
   const animalEmoji = ANIMAL_EMOJI[myAnimal] || '';
 
-  if (pct === 100) {
+  if (pct === 100 && hintsUsed.length === 0) {
     emoji.textContent = animalEmoji || '🏆';
     title.textContent = 'Perfekt!';
     launchConfetti();
+  } else if (pct === 100) {
+    emoji.textContent = animalEmoji || '⭐';
+    title.textContent = 'Geschafft mit Tipps!';
   } else if (pct >= 80) {
     emoji.textContent = animalEmoji || '💪';
     title.textContent = 'Super gemacht!';
@@ -2304,7 +2488,8 @@ async function syncFromFirestore() {
       bySeries[d.series].push({ correct: d.correct || 0, total: d.total || 0, date: d.ts || 0 });
       mistakeWords(d).forEach(word => {
         if (!mistakeCounts[d.series]) mistakeCounts[d.series] = {};
-        mistakeCounts[d.series][word] = (mistakeCounts[d.series][word] || 0) + 1;
+        const key = normalizeWordKey(word);
+        mistakeCounts[d.series][key] = (mistakeCounts[d.series][key] || 0) + 1;
       });
     });
     // Clear all ws_best_ and ws_history_ keys, then rebuild from Firestore
@@ -2313,6 +2498,7 @@ async function syncFromFirestore() {
       localStorage.removeItem('ws_history_' + k);
       localStorage.removeItem('ws_mistakes_' + k);
       lastWrongWords[k] = [];
+      lastMistakeCounts[k] = {};
     });
     Object.keys(bySeries).forEach(s => {
       const attempts = bySeries[s].sort((a, b) => a.date - b.date);
@@ -2325,8 +2511,9 @@ async function syncFromFirestore() {
         .sort((a, b) => b[1] - a[1])
         .map(([word]) => word);
       localStorage.setItem('ws_mistakes_' + s, JSON.stringify(commonMistakes));
+      lastMistakeCounts[s] = mistakeCounts[s];
       lastWrongWords[s] = commonMistakes
-        .map(word => SERIES[s]?.find(entry => getCanonical(entry) === word || displayWord(entry) === word))
+        .map(word => SERIES[s]?.find(entry => normalizeWordKey(getCanonical(entry)) === word || normalizeWordKey(displayWord(entry)) === word))
         .filter(Boolean);
     });
     renderSeriesGrid();
@@ -2385,14 +2572,17 @@ async function loadTeacherDashboard() {
       if (!teacherData[r.animal]) teacherData[r.animal] = {};
       const s = r.series;
       if (!s) return;
-      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], flashcards: 0 };
+      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], flashcards: 0, flashcardTimes: [] };
       if (r.mode === 'flashcard') {
         teacherData[r.animal][s].flashcards++;
+        teacherData[r.animal][s].flashcardTimes.push(r.ts || 0);
       } else {
         teacherData[r.animal][s].quizzes.push({
           correct: r.correct,
           total: r.total,
-          mistakes: normalizeMistakes(r)
+          mistakes: normalizeMistakes(r),
+          hintsUsed: normalizeHints(r),
+          ts: r.ts || 0
         });
       }
     });
@@ -2758,12 +2948,19 @@ function showStudentDetail(animal, data) {
 
   // Summary stats
   let totalQuizzes = 0, totalFlash = 0;
+  let latestPractice = 0;
   const globalMistakes = {};
   seriesKeys.forEach(s => {
     const d = data[s];
     totalQuizzes += d.quizzes.length;
     totalFlash += d.flashcards;
-    d.quizzes.forEach(q => countMistakeWords(q, globalMistakes));
+    d.quizzes.forEach(q => {
+      countMistakeWords(q, globalMistakes);
+      latestPractice = Math.max(latestPractice, q.ts || 0);
+    });
+    (d.flashcardTimes || []).forEach(ts => {
+      latestPractice = Math.max(latestPractice, ts || 0);
+    });
   });
 
   // Per-series cards
@@ -2774,7 +2971,15 @@ function showStudentDetail(animal, data) {
       const t = Number(q.total) || 1;
       const pct = c / t;
       const cls = pct >= 0.8 ? 'good' : pct >= 0.5 ? 'mid' : 'poor';
-      return `<span class="sp-attempt ${cls}">${c}/${t}</span>`;
+      const hints = normalizeHints(q);
+      return `<span class="sp-attempt ${cls}" title="${esc(formatDateTime(q.ts))}${hints.length ? ' · Tipps: ' + hints.length : ''}">${c}/${t}${hints.length ? ' · Tipp' : ''}</span>`;
+    }).join('');
+
+    const timeline = buildPracticeTimeline(d).map(event => {
+      const right = event.kind === 'quiz'
+        ? `<strong>${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`
+        : '<strong>Karteikarten</strong>';
+      return `<div class="sp-event"><span>${esc(formatDateTime(event.ts))}</span><span>${right}</span></div>`;
     }).join('');
 
     const seriesMistakes = {};
@@ -2784,14 +2989,19 @@ function showStudentDetail(animal, data) {
     const mistakePairs = summarizeMistakeDetails(d.quizzes)
       .map(m => `<div class="sp-mistake-pair"><span class="typed">${esc(m.typed || 'leer')}</span><span>→</span><span class="correct">${esc(m.word)}</span>${m.count > 1 ? `<span class="count">${m.count}\u00d7</span>` : ''}</div>`)
       .join('');
+    const hintTags = summarizeHintDetails(d.quizzes)
+      .map(h => `<span class="sp-mistake-tag">${esc(h.word)} · Tipp ${h.maxLevel}${h.count > 1 ? ' · ' + h.count + '\u00d7' : ''}</span>`)
+      .join('');
 
     const flash = d.flashcards > 0 ? `<div class="sp-flash">\ud83c\udccf ${d.flashcards} Karteikarten</div>` : '';
 
     return `<div class="sp-series">
       <div class="sp-series-head">Serie ${s}</div>
       ${attempts ? '<div class="sp-attempts">' + attempts + '</div>' : ''}
+      ${timeline ? '<div class="sp-timeline">' + timeline + '</div>' : ''}
       ${mistakeTags ? '<div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
       ${mistakePairs ? '<div class="sp-mistake-pairs">' + mistakePairs + '</div>' : ''}
+      ${hintTags ? '<h3>Genutzte Tipps</h3><div class="sp-mistakes">' + hintTags + '</div>' : ''}
       ${flash}
     </div>`;
   }).join('');
@@ -2805,7 +3015,7 @@ function showStudentDetail(animal, data) {
   overlay.innerHTML = `<div class="student-panel">
     <button class="sp-close" onclick="closeStudentDetail()">\u2715</button>
     <h2>${ANIMAL_EMOJI[animal] || ''} ${esc(animal)}</h2>
-    <div class="sp-summary">${totalQuizzes} Diktat${totalQuizzes !== 1 ? 'e' : ''} \u00b7 ${totalFlash} Karteikarten \u00b7 ${seriesKeys.length} Serien</div>
+    <div class="sp-summary">${totalQuizzes} Diktat${totalQuizzes !== 1 ? 'e' : ''} \u00b7 ${totalFlash} Karteikarten \u00b7 ${seriesKeys.length} Serien \u00b7 zuletzt: ${esc(formatRelativePractice(latestPractice))}</div>
     ${seriesHTML}
     ${globalHTML}
   </div>`;
@@ -2820,6 +3030,33 @@ function summarizeMistakeDetails(quizzes) {
     counts[key].count++;
   }));
   return Object.values(counts).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
+}
+
+function summarizeHintDetails(quizzes) {
+  const counts = {};
+  quizzes.forEach(q => normalizeHints(q).forEach(h => {
+    const key = h.word;
+    if (!counts[key]) counts[key] = { word: h.word, count: 0, maxLevel: 0 };
+    counts[key].count++;
+    counts[key].maxLevel = Math.max(counts[key].maxLevel, h.level);
+  }));
+  return Object.values(counts).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
+}
+
+function buildPracticeTimeline(seriesData) {
+  const quizEvents = seriesData.quizzes.map(q => {
+    const hints = normalizeHints(q);
+    return {
+      kind: 'quiz',
+      ts: q.ts || 0,
+      correct: Number(q.correct) || 0,
+      total: Number(q.total) || 0,
+      hints: hints.length,
+      maxHint: hints.reduce((max, h) => Math.max(max, h.level), 0)
+    };
+  });
+  const flashEvents = (seriesData.flashcardTimes || []).map(ts => ({ kind: 'flashcard', ts: ts || 0 }));
+  return quizEvents.concat(flashEvents).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 8);
 }
 
 function closeStudentDetail() {

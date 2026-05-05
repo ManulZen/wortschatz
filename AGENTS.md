@@ -11,7 +11,7 @@ Single-file German spelling trainer for primary school dictation practice.
 - Hosting: Vercel, auto-deploys from `main`
 - Student identity: animal name + hardcoded 4-digit PIN, validated locally
 - Student UI goal: primary-school friendly, personal, colorful, animal-led, but still calm enough for repeated practice
-- Language target: Hochdeutsch / German school dictation (`de-DE` TTS fallback)
+- Language target: German school dictation with Swiss German TTS fallback (`de-CH`) because it sounds better on the teacher/student devices
 
 ## Mandatory Working Rule
 
@@ -37,7 +37,7 @@ index.html
     ├── Series         DEFAULT_SERIES seed, SERIES runtime map, SERIES_AUDIO recording metadata
     ├── Identity       animal emoji/PIN maps, local login cache
     ├── Helpers        word normalization, mistake normalization, escaping, audio keys
-    ├── TTS/Audio      teacher recording playback first, de-DE SpeechSynthesis fallback
+    ├── TTS/Audio      teacher recording playback first, de-CH SpeechSynthesis fallback
     ├── Student Flow   animal select, start, mode select, quiz, flashcards, results
     ├── Teacher View   PIN login, dashboard, analytics, detail overlay, series manager
     ├── Recordings     per-word recording, local draft review, Storage upload on Save only
@@ -84,6 +84,9 @@ Quiz/flashcard results live in Firestore collection `results`.
   correct: 8,
   total: 10,
   ts: 1710000000000,
+  hintsUsed: [
+    { word: "wieder", level: 2 }
+  ],
   mistakes: [
     { word: "gross", typed: "gros" },
     { word: "wieder", typed: null }
@@ -92,6 +95,7 @@ Quiz/flashcard results live in Firestore collection `results`.
 ```
 
 `mistakes` must use the object format above. Legacy string mistakes are migrated from the teacher dashboard to `{word, typed: null}`.
+`hintsUsed` is optional and records student-visible progressive hints used during a quiz. `level` is 1–3, where higher levels reveal more structure but never the full word.
 
 ## Firebase
 
@@ -116,7 +120,7 @@ Quiz/flashcard results live in Firestore collection `results`.
 ## Audio And TTS
 
 - Student playback uses teacher recording first: `getAudioMeta(currentSeries, entry)` → `playRecordedAudio()`
-- If recording is absent or fails, fallback is `SpeechSynthesisUtterance` with `lang = "de-DE"` and German voice preference.
+- If recording is absent or fails, fallback is `SpeechSynthesisUtterance` with `lang = "de-CH"` and German voice preference.
 - Teacher recordings are drafts until `Speichern`:
   - Draft blob stays only in `recorderState.blob`
   - `Prüfen` plays the local draft only for the teacher

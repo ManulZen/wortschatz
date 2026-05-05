@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-05 — Session 17: Swiss TTS fallback
+
+**What changed:**
+- Switched the SpeechSynthesis fallback locale back from `de-DE` to `de-CH`
+- Updated voice selection to prefer `de-CH` voices before falling back to any German voice
+- Updated `AGENTS.md` to document the Swiss TTS fallback choice
+
+**Important notes:**
+- Teacher recordings still take priority; this only affects the browser TTS fallback when no saved recording is available or playback fails
+- The switch is based on device feedback that `de-CH` currently sounds better for the class devices despite the spelling target remaining school German
+
+---
+
 ## 2026-05-05 — Session 16: Storage CORS and series encoding
 
 **What changed:**
@@ -78,6 +91,26 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 **Important notes:**
 - Real microphone upload still needs browser testing on the teacher device; this environment can verify syntax and serve the page, but cannot grant microphone access
 - If saving still fails with a Firebase permission message, check Firebase Storage rules for `teacher-audio/series-{num}/...`
+
+---
+
+## 2026-05-05 — Session 11: Teacher timeline and progressive hints
+
+**What changed:**
+- Teacher student details now include a per-series practice timeline with dated quiz and flashcard events
+- Student detail summaries show when the student last practiced
+- Added progressive student hints for repeated mistake words:
+  - Hints unlock only after a word has been missed repeatedly by that student
+  - Hint levels escalate from first-letter/length to spelling pattern to word shape
+  - Hints require student input before the button appears and never reveal the full word
+- Quiz results now optionally store `hintsUsed: [{word, level}]`
+- Teacher details show hint usage per attempt and summarize which words needed hints
+- Perfect-result celebration is reserved for 100% without hints; 100% with hints gets separate feedback
+- Documented the optional `hintsUsed` result field in `AGENTS.md`
+
+**Important notes:**
+- Existing result documents remain compatible because `hintsUsed` is optional
+- Hint behavior depends on each student's synced Firestore mistake history, so the first repeated-error hints appear after prior mistakes have been saved and synced
 
 ---
 
