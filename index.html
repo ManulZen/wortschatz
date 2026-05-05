@@ -1429,6 +1429,11 @@ body {
       <h3>Diktat-Modus</h3>
       <p>Höre das Wort und schreibe es richtig. Du bekommst sofort eine Rückmeldung.</p>
     </div>
+    <div class="mode-card hidden" id="resumeQuizCard" role="button" tabindex="0" onclick="resumeQuiz()" onkeydown="activateOnKey(event, resumeQuiz)">
+      <div class="mode-icon">⏯</div>
+      <h3>Weitermachen</h3>
+      <p id="resumeQuizText">Dein angefangenes Diktat fortsetzen.</p>
+    </div>
     <div class="mode-card" id="retryWrongCard" role="button" tabindex="0" onclick="startQuiz(true)" onkeydown="activateOnKey(event, () => startQuiz(true))">
       <div class="mode-icon">🔁</div>
       <h3>Fehler üben</h3>
@@ -1617,6 +1622,9 @@ let words = [];       // current quiz word list (entries may be string or array)
 let results = [];
 let answered = false;
 let hintState = { level: 0, max: 0 };
+let quizSessionId = '';
+let quizStartedAt = 0;
+let quizWrongOnly = false;
 let flashIndex = 0;
 let lastWrongWords = {};  // keyed by series number
 let lastMistakeCounts = {};  // keyed by series number, then canonical word
@@ -1747,6 +1755,21 @@ function normalizeHints(record) {
       level: Math.max(1, Math.min(3, Number(h.level) || 1))
     }))
     .filter(h => h.word);
+}
+
+function isFullQuizRecord(record) {
+  if (record.mode !== 'quiz') return false;
+  if (record.practiceType) return record.practiceType === 'full';
+  const total = Number(record.total) || 0;
+  const seriesTotal = SERIES[record.series]?.length || 0;
+  return total > 0 && (!seriesTotal || total >= seriesTotal);
+}
+
+function practiceTypeForRecord(record) {
+  if (record.mode === 'quiz_partial') return 'partial';
+  if (record.practiceType === 'retry') return 'retry';
+  if (record.practiceType === 'full') return 'full';
+  return isFullQuizRecord(record) ? 'full' : 'retry';
 }
 
 function countMistakeWords(record, counts) {
@@ -2011,6 +2034,16 @@ async function selectSeries(n) {
   const retryCard = document.getElementById('retryWrongCard');
   retryCard.classList.toggle('hidden', !wrong || wrong.length === 0);
 
+  const draft = getQuizDraft(n);
+  const resumeCard = document.getElementById('resumeQuizCard');
+  const resumeText = document.getElementById('resumeQuizText');
+  if (draft) {
+    resumeCard.classList.remove('hidden');
+    resumeText.textContent = `${draft.results.length}/${draft.words.length} Wörter fertig · weitermachen`;
+  } else {
+    resumeCard.classList.add('hidden');
+  }
+
   showScreen('modeScreen');
 }
 
@@ -2022,6 +2055,7 @@ function showScreen(id) {
 
 function goHome() {
   window.speechSynthesis.cancel();
+  savePartialProgress();
   renderSeriesGrid();
   showScreen('startScreen');
 }
@@ -2029,6 +2063,12 @@ function goHome() {
 // --- QUIZ MODE ---
 async function startQuiz(wrongOnly) {
   await refreshSeriesFromFirestore(currentSeries, true);
+  const existingDraft = getQuizDraft(currentSeries);
+  if (existingDraft && !confirm('Du hast hier ein angefangenes Diktat. Neuen Versuch starten?')) {
+    restoreQuizDraft(existingDraft);
+    return;
+  }
+  clearQuizDraft(currentSeries);
   if (wrongOnly && lastWrongWords[currentSeries] && lastWrongWords[currentSeries].length > 0) {
     words = shuffle([...lastWrongWords[currentSeries]]);
   } else {
@@ -2037,6 +2077,9 @@ async function startQuiz(wrongOnly) {
   currentIndex = 0;
   results = [];
   answered = false;
+  quizSessionId = newQuizSessionId();
+  quizStartedAt = Date.now();
+  quizWrongOnly = !!wrongOnly;
   updateAnimalCompanions();
   showScreen('quizScreen');
   loadQuestion();
@@ -2055,6 +2098,114 @@ function buildPracticeWords(seriesNum) {
 
 function entryKey(entry) {
   return getCanonical(entry).trim().toLowerCase();
+}
+
+function quizDraftKey(seriesNum = currentSeries) {
+  return `ws_quiz_draft_${myAnimal}_${seriesNum}`;
+}
+
+function newQuizSessionId() {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function getQuizDraft(seriesNum = currentSeries) {
+  if (!myAnimal) return null;
+  try {
+    const draft = JSON.parse(localStorage.getItem(quizDraftKey(seriesNum)) || 'null');
+    if (!draft || draft.animal !== myAnimal || Number(draft.series) !== Number(seriesNum)) return null;
+    if (!Array.isArray(draft.words) || !Array.isArray(draft.results)) return null;
+    if (draft.results.length >= draft.words.length) return null;
+    return draft;
+  } catch(e) {
+    return null;
+  }
+}
+
+function saveQuizDraft() {
+  if (!myAnimal || !quizSessionId || results.length === 0 || results.length >= words.length) return;
+  const draft = {
+    animal: myAnimal,
+    series: currentSeries,
+    sessionId: quizSessionId,
+    started: quizStartedAt,
+    updated: Date.now(),
+    wrongOnly: quizWrongOnly,
+    words,
+    results
+  };
+  localStorage.setItem(quizDraftKey(), JSON.stringify(draft));
+}
+
+function clearQuizDraft(seriesNum = currentSeries) {
+  if (!myAnimal) return;
+  localStorage.removeItem(quizDraftKey(seriesNum));
+}
+
+function restoreQuizDraft(draft) {
+  currentSeries = Number(draft.series);
+  words = draft.words;
+  results = draft.results || [];
+  currentIndex = results.length;
+  answered = false;
+  quizSessionId = draft.sessionId || newQuizSessionId();
+  quizStartedAt = draft.started || Date.now();
+  quizWrongOnly = !!draft.wrongOnly;
+  updateAnimalCompanions();
+  showScreen('quizScreen');
+  loadQuestion();
+}
+
+function resumeQuiz() {
+  const draft = getQuizDraft(currentSeries);
+  if (!draft) return;
+  restoreQuizDraft(draft);
+}
+
+function quizProgressPayload(partial) {
+  const correctCount = results.filter(r => r.correct).length;
+  const mistakes = results
+    .filter(r => !r.correct)
+    .map(r => ({ word: getCanonical(r.entry), typed: r.typed || null }));
+  const hintsUsed = results
+    .filter(r => r.hintLevel > 0)
+    .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel }));
+  return {
+    mode: partial ? 'quiz_partial' : 'quiz',
+    practiceType: quizWrongOnly ? 'retry' : 'full',
+    partial: !!partial,
+    completed: !partial,
+    correct: correctCount,
+    answered: results.length,
+    total: partial ? words.length : results.length,
+    mistakes,
+    hintsUsed,
+    started: quizStartedAt || Date.now(),
+    updated: Date.now()
+  };
+}
+
+async function savePartialProgress() {
+  if (!myAnimal || !quizSessionId || results.length === 0 || results.length >= words.length) return;
+  saveQuizDraft();
+  try {
+    await db.collection('results').doc('partial_' + quizSessionId).set(Object.assign({
+      animal: myAnimal,
+      series: currentSeries,
+      ts: Date.now(),
+      sessionId: quizSessionId
+    }, quizProgressPayload(true)), { merge: true });
+  } catch(e) {
+    console.warn('Could not save partial progress:', e);
+  }
+}
+
+async function clearPartialProgress() {
+  if (!quizSessionId) return;
+  try {
+    await db.collection('results').doc('partial_' + quizSessionId).delete();
+  } catch(e) {
+    console.warn('Could not clear partial progress:', e);
+  }
 }
 
 function loadQuestion() {
@@ -2191,6 +2342,7 @@ function checkAnswer() {
   document.getElementById('hintBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.remove('hidden');
   updateProgress();
+  savePartialProgress();
 }
 
 function capitalizeFirst(str) {
@@ -2218,13 +2370,12 @@ function showResults() {
   const pct = Math.round((correctCount / total) * 100);
 
   const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
-  const mistakes = results
-    .filter(r => !r.correct)
-    .map(r => ({ word: getCanonical(r.entry), typed: r.typed || null }));
   const hintsUsed = results
     .filter(r => r.hintLevel > 0)
     .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel }));
-  saveToFirestore({ correct: correctCount, total, mistakes, hintsUsed, mode: 'quiz' })
+  clearQuizDraft();
+  clearPartialProgress();
+  saveToFirestore(quizProgressPayload(false))
     .then(() => syncFromFirestore());
 
   // Save wrong words for retry
@@ -2232,11 +2383,13 @@ function showResults() {
 
   const totalSeries = SERIES[currentSeries].length;
   const prevBest = parseInt(localStorage.getItem('ws_best_' + currentSeries)) || 0;
-  const best = Math.max(prevBest, correctCount);
+  const best = quizWrongOnly ? prevBest : Math.max(prevBest, correctCount);
 
   document.getElementById('scoreBig').textContent = `${correctCount} / ${total}`;
   document.getElementById('resultsDetail').textContent = `${pct}% richtig`;
-  document.getElementById('bestScore').innerHTML = `Bestes Ergebnis: <span>${best}/${totalSeries}</span>`;
+  document.getElementById('bestScore').innerHTML = quizWrongOnly
+    ? `Fehlerübung abgeschlossen: <span>${correctCount}/${total}</span>`
+    : `Bestes Ergebnis: <span>${best}/${totalSeries}</span>`;
 
   const emoji = document.getElementById('resultsEmoji');
   const title = document.getElementById('resultsTitle');
@@ -2485,7 +2638,9 @@ async function syncFromFirestore() {
       const d = doc.data();
       if (!d.series) return;
       if (!bySeries[d.series]) bySeries[d.series] = [];
-      bySeries[d.series].push({ correct: d.correct || 0, total: d.total || 0, date: d.ts || 0 });
+      if (isFullQuizRecord(d)) {
+        bySeries[d.series].push({ correct: d.correct || 0, total: d.total || 0, date: d.ts || 0 });
+      }
       mistakeWords(d).forEach(word => {
         if (!mistakeCounts[d.series]) mistakeCounts[d.series] = {};
         const key = normalizeWordKey(word);
@@ -2502,6 +2657,7 @@ async function syncFromFirestore() {
     });
     Object.keys(bySeries).forEach(s => {
       const attempts = bySeries[s].sort((a, b) => a.date - b.date);
+      if (attempts.length === 0) return;
       const best = Math.max(...attempts.map(a => a.correct));
       localStorage.setItem('ws_best_' + s, best);
       localStorage.setItem('ws_history_' + s, JSON.stringify(attempts.slice(-10)));
@@ -2523,6 +2679,7 @@ async function syncFromFirestore() {
 }
 
 function logout() {
+  savePartialProgress();
   localStorage.removeItem('ws_animal');
   localStorage.removeItem('ws_pin');
   Object.keys(SERIES).forEach(k => {
@@ -2572,14 +2729,24 @@ async function loadTeacherDashboard() {
       if (!teacherData[r.animal]) teacherData[r.animal] = {};
       const s = r.series;
       if (!s) return;
-      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], flashcards: 0, flashcardTimes: [] };
+      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], partials: [], flashcards: 0, flashcardTimes: [] };
       if (r.mode === 'flashcard') {
         teacherData[r.animal][s].flashcards++;
         teacherData[r.animal][s].flashcardTimes.push(r.ts || 0);
+      } else if (r.mode === 'quiz_partial') {
+        teacherData[r.animal][s].partials.push({
+          correct: r.correct,
+          answered: r.answered,
+          total: r.total,
+          mistakes: normalizeMistakes(r),
+          hintsUsed: normalizeHints(r),
+          ts: r.updated || r.ts || 0
+        });
       } else {
         teacherData[r.animal][s].quizzes.push({
           correct: r.correct,
           total: r.total,
+          practiceType: practiceTypeForRecord(r),
           mistakes: normalizeMistakes(r),
           hintsUsed: normalizeHints(r),
           ts: r.ts || 0
@@ -2593,11 +2760,13 @@ async function loadTeacherDashboard() {
     renderTeacherAnalysis(teacherData, docs);
     renderTeacherGrid(teacherData);
     renderSeriesManager();
-    const quizCount = docs.filter(d => d.mode !== 'flashcard').length;
+    const quizCount = docs.filter(d => isFullQuizRecord(d)).length;
+    const retryCount = docs.filter(d => d.mode === 'quiz' && practiceTypeForRecord(d) === 'retry').length;
+    const partialCount = docs.filter(d => d.mode === 'quiz_partial').length;
     const flashCount = docs.filter(d => d.mode === 'flashcard').length;
     const time = new Date().toLocaleTimeString('de-CH');
     document.getElementById('teacherMeta').textContent =
-      `${Object.keys(teacherData).length} Schüler · ${quizCount} Diktate · ${flashCount} Karteikarten · Stand: ${time}`;
+      `${Object.keys(teacherData).length} Schüler · ${quizCount} Diktate · ${retryCount} Fehlerübungen · ${partialCount} angefangen · ${flashCount} Karteikarten · Stand: ${time}`;
   } catch(e) {
     document.getElementById('teacherGrid').innerHTML =
       `<p style="color:var(--error)">Fehler beim Laden: ${esc(e.message)}</p>`;
@@ -2637,7 +2806,7 @@ function renderTeacherOverview(teacherData, docs) {
   if (!overview) return;
 
   const activeAnimals = Object.keys(teacherData).length;
-  const quizDocs = docs.filter(d => d.mode !== 'flashcard');
+  const quizDocs = docs.filter(d => isFullQuizRecord(d));
   const completedSeries = quizDocs.filter(d => {
     const total = Number(d.total) || 0;
     return total > 0 && (Number(d.correct) || 0) / total >= 0.8;
@@ -2657,7 +2826,7 @@ function renderTeacherOverview(teacherData, docs) {
 function renderTeacherAnalysis(teacherData, docs) {
   const box = document.getElementById('teacherAnalysis');
   if (!box) return;
-  const quizDocs = docs.filter(d => d.mode !== 'flashcard' && d.series);
+  const quizDocs = docs.filter(d => isFullQuizRecord(d) && d.series);
   if (quizDocs.length === 0) {
     box.innerHTML = '';
     return;
@@ -2881,13 +3050,19 @@ function renderTeacherGrid(teacherData) {
     seriesKeys.forEach(s => {
       const cell = row.insertCell();
       const d = teacherData[animal]?.[s];
-      if (!d || d.quizzes.length === 0) {
+      const fullQuizzes = d ? d.quizzes.filter(q => q.practiceType === 'full') : [];
+      const retryQuizzes = d ? d.quizzes.filter(q => q.practiceType === 'retry') : [];
+      if (!d || fullQuizzes.length === 0) {
         let fc = d ? d.flashcards : 0;
-        cell.innerHTML = fc > 0
-          ? `<span class="cell-none" title="Nur Karteikarten">🃏 ${fc}×</span>`
+        const extras = [];
+        if (retryQuizzes.length > 0) extras.push(`Üben ${retryQuizzes.length}×`);
+        if (d?.partials?.length > 0) extras.push(`angefangen ${d.partials.length}×`);
+        if (fc > 0) extras.push(`🃏 ${fc}×`);
+        cell.innerHTML = extras.length > 0
+          ? `<span class="cell-none" title="${esc(extras.join(', '))}">${esc(extras[0])}</span>`
           : '<span class="cell-none">—</span>';
       } else {
-        const best = d.quizzes.reduce((a, b) => (b.correct || 0) > (a.correct || 0) ? b : a);
+        const best = fullQuizzes.reduce((a, b) => (b.correct || 0) > (a.correct || 0) ? b : a);
         const c = Number(best.correct) || 0;
         const t = Number(best.total) || 1;
         const pct = c / t;
@@ -2898,13 +3073,15 @@ function renderTeacherGrid(teacherData) {
         allMistakes.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
         const mistakeList = Object.entries(freq).sort((a, b) => b[1] - a[1]);
 
-        let tooltip = `${d.quizzes.length} Diktat(e)`;
+        let tooltip = `${fullQuizzes.length} Diktat(e)`;
+        if (retryQuizzes.length > 0) tooltip += `, ${retryQuizzes.length} Fehlerübung(en)`;
+        if (d.partials.length > 0) tooltip += `, ${d.partials.length} angefangen`;
         if (d.flashcards > 0) tooltip += `, ${d.flashcards} Karteikarten`;
         if (mistakeList.length > 0) tooltip += '\nHäufige Fehler: ' + mistakeList.slice(0, 5).map(([w, n]) => `${w} (${n}×)`).join(', ');
 
         cell.title = tooltip;
         cell.style.cursor = mistakeList.length > 0 ? 'help' : 'default';
-        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${d.quizzes.length}×${d.flashcards > 0 ? ' 🃏' + d.flashcards : ''}</span>`;
+        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${fullQuizzes.length}×${retryQuizzes.length > 0 ? ' Ü' + retryQuizzes.length : ''}${d.partials.length > 0 ? ' angefangen' : ''}${d.flashcards > 0 ? ' 🃏' + d.flashcards : ''}</span>`;
       }
     });
 
@@ -2947,16 +3124,22 @@ function showStudentDetail(animal, data) {
   const seriesKeys = Object.keys(data).map(Number).sort((a, b) => a - b);
 
   // Summary stats
-  let totalQuizzes = 0, totalFlash = 0;
+  let totalQuizzes = 0, totalRetry = 0, totalPartial = 0, totalFlash = 0;
   let latestPractice = 0;
   const globalMistakes = {};
   seriesKeys.forEach(s => {
     const d = data[s];
-    totalQuizzes += d.quizzes.length;
+    totalQuizzes += d.quizzes.filter(q => q.practiceType === 'full').length;
+    totalRetry += d.quizzes.filter(q => q.practiceType === 'retry').length;
+    totalPartial += d.partials.length;
     totalFlash += d.flashcards;
     d.quizzes.forEach(q => {
       countMistakeWords(q, globalMistakes);
       latestPractice = Math.max(latestPractice, q.ts || 0);
+    });
+    d.partials.forEach(p => {
+      countMistakeWords(p, globalMistakes);
+      latestPractice = Math.max(latestPractice, p.ts || 0);
     });
     (d.flashcardTimes || []).forEach(ts => {
       latestPractice = Math.max(latestPractice, ts || 0);
@@ -2972,27 +3155,35 @@ function showStudentDetail(animal, data) {
       const pct = c / t;
       const cls = pct >= 0.8 ? 'good' : pct >= 0.5 ? 'mid' : 'poor';
       const hints = normalizeHints(q);
-      return `<span class="sp-attempt ${cls}" title="${esc(formatDateTime(q.ts))}${hints.length ? ' · Tipps: ' + hints.length : ''}">${c}/${t}${hints.length ? ' · Tipp' : ''}</span>`;
+      const label = q.practiceType === 'retry' ? 'Üben ' : '';
+      return `<span class="sp-attempt ${cls}" title="${esc(formatDateTime(q.ts))}${hints.length ? ' · Tipps: ' + hints.length : ''}">${label}${c}/${t}${hints.length ? ' · Tipp' : ''}</span>`;
     }).join('');
 
     const timeline = buildPracticeTimeline(d).map(event => {
-      const right = event.kind === 'quiz'
-        ? `<strong>${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`
-        : '<strong>Karteikarten</strong>';
+      let right = '<strong>Karteikarten</strong>';
+      if (event.kind === 'quiz') {
+        right = `<strong>Diktat ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`;
+      } else if (event.kind === 'retry') {
+        right = `<strong>Fehlerübung ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`;
+      } else if (event.kind === 'partial') {
+        right = `<strong>angefangen ${event.answered}/${event.total}</strong>${event.hints > 0 ? ' <span class="sp-hint-used">Tipp</span>' : ''}`;
+      }
       return `<div class="sp-event"><span>${esc(formatDateTime(event.ts))}</span><span>${right}</span></div>`;
     }).join('');
 
     const seriesMistakes = {};
     d.quizzes.forEach(q => countMistakeWords(q, seriesMistakes));
+    d.partials.forEach(p => countMistakeWords(p, seriesMistakes));
     const mistakeTags = Object.entries(seriesMistakes).sort((a, b) => b[1] - a[1])
       .map(([w, n]) => `<span class="sp-mistake-tag">${esc(w)}${n > 1 ? ' ' + n + '\u00d7' : ''}</span>`).join('');
-    const mistakePairs = summarizeMistakeDetails(d.quizzes)
+    const mistakePairs = summarizeMistakeDetails(d.quizzes.concat(d.partials))
       .map(m => `<div class="sp-mistake-pair"><span class="typed">${esc(m.typed || 'leer')}</span><span>→</span><span class="correct">${esc(m.word)}</span>${m.count > 1 ? `<span class="count">${m.count}\u00d7</span>` : ''}</div>`)
       .join('');
-    const hintTags = summarizeHintDetails(d.quizzes)
+    const hintTags = summarizeHintDetails(d.quizzes.concat(d.partials))
       .map(h => `<span class="sp-mistake-tag">${esc(h.word)} · Tipp ${h.maxLevel}${h.count > 1 ? ' · ' + h.count + '\u00d7' : ''}</span>`)
       .join('');
 
+    const partial = d.partials.length > 0 ? `<div class="sp-flash">${d.partials.length} angefangen${d.partials.length === 1 ? '' : 'e'} Teilversuch${d.partials.length === 1 ? '' : 'e'}</div>` : '';
     const flash = d.flashcards > 0 ? `<div class="sp-flash">\ud83c\udccf ${d.flashcards} Karteikarten</div>` : '';
 
     return `<div class="sp-series">
@@ -3002,6 +3193,7 @@ function showStudentDetail(animal, data) {
       ${mistakeTags ? '<div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
       ${mistakePairs ? '<div class="sp-mistake-pairs">' + mistakePairs + '</div>' : ''}
       ${hintTags ? '<h3>Genutzte Tipps</h3><div class="sp-mistakes">' + hintTags + '</div>' : ''}
+      ${partial}
       ${flash}
     </div>`;
   }).join('');
@@ -3015,7 +3207,7 @@ function showStudentDetail(animal, data) {
   overlay.innerHTML = `<div class="student-panel">
     <button class="sp-close" onclick="closeStudentDetail()">\u2715</button>
     <h2>${ANIMAL_EMOJI[animal] || ''} ${esc(animal)}</h2>
-    <div class="sp-summary">${totalQuizzes} Diktat${totalQuizzes !== 1 ? 'e' : ''} \u00b7 ${totalFlash} Karteikarten \u00b7 ${seriesKeys.length} Serien \u00b7 zuletzt: ${esc(formatRelativePractice(latestPractice))}</div>
+    <div class="sp-summary">${totalQuizzes} Diktat${totalQuizzes !== 1 ? 'e' : ''} \u00b7 ${totalRetry} Fehlerübung${totalRetry !== 1 ? 'en' : ''} \u00b7 ${totalPartial} angefangen \u00b7 ${totalFlash} Karteikarten \u00b7 ${seriesKeys.length} Serien \u00b7 zuletzt: ${esc(formatRelativePractice(latestPractice))}</div>
     ${seriesHTML}
     ${globalHTML}
   </div>`;
@@ -3047,7 +3239,7 @@ function buildPracticeTimeline(seriesData) {
   const quizEvents = seriesData.quizzes.map(q => {
     const hints = normalizeHints(q);
     return {
-      kind: 'quiz',
+      kind: q.practiceType === 'retry' ? 'retry' : 'quiz',
       ts: q.ts || 0,
       correct: Number(q.correct) || 0,
       total: Number(q.total) || 0,
@@ -3055,8 +3247,16 @@ function buildPracticeTimeline(seriesData) {
       maxHint: hints.reduce((max, h) => Math.max(max, h.level), 0)
     };
   });
+  const partialEvents = (seriesData.partials || []).map(p => ({
+    kind: 'partial',
+    ts: p.ts || 0,
+    correct: Number(p.correct) || 0,
+    answered: Number(p.answered) || 0,
+    total: Number(p.total) || 0,
+    hints: normalizeHints(p).length
+  }));
   const flashEvents = (seriesData.flashcardTimes || []).map(ts => ({ kind: 'flashcard', ts: ts || 0 }));
-  return quizEvents.concat(flashEvents).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 8);
+  return quizEvents.concat(partialEvents, flashEvents).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 8);
 }
 
 function closeStudentDetail() {

@@ -81,6 +81,8 @@ Quiz/flashcard results live in Firestore collection `results`.
   animal: "Fuchs",
   series: 1,
   mode: "quiz",          // or "flashcard"
+  practiceType: "full",  // "full" or "retry" for Fehler üben
+  completed: true,
   correct: 8,
   total: 10,
   ts: 1710000000000,
@@ -96,6 +98,31 @@ Quiz/flashcard results live in Firestore collection `results`.
 
 `mistakes` must use the object format above. Legacy string mistakes are migrated from the teacher dashboard to `{word, typed: null}`.
 `hintsUsed` is optional and records student-visible progressive hints used during a quiz. `level` is 1–3, where higher levels reveal more structure but never the full word.
+
+Started but unfinished dictations are stored as overwriteable partial docs, not as final scores:
+
+```js
+// results/partial_<sessionId>
+{
+  animal: "Fuchs",
+  series: 1,
+  mode: "quiz_partial",
+  practiceType: "full",  // or "retry"
+  partial: true,
+  completed: false,
+  correct: 3,
+  answered: 4,
+  total: 10,
+  started: 1710000000000,
+  updated: 1710000300000,
+  ts: 1710000300000,
+  sessionId: "1710000000000_ab12cd3",
+  mistakes: [],
+  hintsUsed: []
+}
+```
+
+Partial docs are updated after answered words and deleted when the quiz completes. Student resume state is also cached locally in `ws_quiz_draft_<animal>_<series>`.
 
 ## Firebase
 

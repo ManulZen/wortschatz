@@ -5,6 +5,24 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-05 — Session 18: Partial quiz resume and clearer practice types
+
+**What changed:**
+- Added local quiz drafts so students can continue an unfinished dictation for the same animal and series
+- Added a visible "Weitermachen" card on the mode screen when a saved draft exists
+- Started but unfinished quizzes now save an overwriteable Firestore partial doc under `results/partial_<sessionId>`
+- Partial docs use `mode: "quiz_partial"` and are updated after answered words, then deleted when the quiz completes
+- Completed quizzes now store `practiceType: "full"` or `"retry"` so "Fehler üben" mini-rounds are no longer confused with full dictations
+- Teacher dashboard details now label timeline rows as `Diktat`, `Fehlerübung`, or `angefangen`
+- Teacher overview and performance analysis now use full dictations for score statistics instead of counting retry mini-rounds as normal dictations
+- Documented partial quiz docs and local draft keys in `AGENTS.md`
+
+**Important notes:**
+- Old retry results without `practiceType` are inferred as Fehlerübungen when their total is smaller than the series length
+- Partial saving records answered words only; text typed into the current field but not checked is not saved
+
+---
+
 ## 2026-05-05 — Session 17: Swiss TTS fallback
 
 **What changed:**
