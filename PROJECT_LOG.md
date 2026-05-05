@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-05 — Session 15: Blaze Storage audio check
+
+**What changed:**
+- Confirmed teacher recordings should continue using Firebase Storage now that the Firebase project is on the Blaze plan
+- Kept the existing Storage-backed audio data model: uploaded files in `teacher-audio/series-{num}/...` and metadata links in `custom_series/{num}.audio`
+- Added clearer teacher-facing recording save errors for likely Billing/Blaze/quota, Storage rules, or bucket setup problems
+
+**Important notes:**
+- Real upload still needs a browser test after the Blaze upgrade has fully propagated in Firebase
+- If saving still fails, check the exact alert details plus Firebase Storage rules and whether the 20 CHF billing budget has already stopped Storage access
+
+---
+
 ## 2026-05-04 — Session 14: Student audio refresh
 
 **What changed:**

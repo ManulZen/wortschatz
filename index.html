@@ -3141,6 +3141,22 @@ function uploadAudioBlob(ref, blob, metadata, status) {
   });
 }
 
+function recordingSaveErrorMessage(error) {
+  const code = error?.code || '';
+  const message = error?.message || String(error || 'Unbekannter Fehler');
+  const text = `${code} ${message}`.toLowerCase();
+  if (text.includes('billing') || text.includes('blaze') || text.includes('spark') || text.includes('quota')) {
+    return 'Firebase Storage ist noch nicht bereit oder durch Billing/Quota blockiert. Bitte prüfen, ob der Blaze-Plan aktiv ist und das Budget nicht ausgeschöpft wurde. Details: ' + message;
+  }
+  if (code.includes('storage/unauthorized') || text.includes('permission') || text.includes('unauthorized')) {
+    return 'Firebase Storage verweigert den Upload. Bitte Storage-Regeln für teacher-audio prüfen. Details: ' + message;
+  }
+  if (code.includes('storage/bucket-not-found') || text.includes('bucket')) {
+    return 'Der Firebase Storage Bucket wurde nicht gefunden oder ist noch nicht bereit. Bitte Storage in Firebase öffnen und den Bucket prüfen. Details: ' + message;
+  }
+  return message;
+}
+
 async function startRecording(num, entry) {
   if (recorderState.saving) return;
   if (!canRecordAudio()) {
@@ -3235,7 +3251,7 @@ async function saveRecording(num, entry) {
     resetRecorderState();
     renderSeriesManager();
   } catch(e) {
-    alert('Aufnahme konnte nicht gespeichert werden: ' + e.message);
+    alert('Aufnahme konnte nicht gespeichert werden: ' + recordingSaveErrorMessage(e));
     recorderState.saving = false;
     renderSeriesManager();
   }
