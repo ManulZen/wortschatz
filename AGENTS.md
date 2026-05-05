@@ -51,7 +51,11 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` only s
 ```js
 // custom_series/{seriesNumber}
 {
-  words: ["word1", "word2", ["accepted1", "accepted2"]],
+  words: [
+    "word1",
+    "word2",
+    { alternatives: { "0": "accepted1", "1": "accepted2" } }
+  ],
   created: 1710000000000,
   audio: {
     "<audioKey>": {
@@ -64,6 +68,10 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` only s
   }
 }
 ```
+
+At runtime, alternative spellings are decoded back to arrays like
+`["accepted1", "accepted2"]`. Do not write nested arrays directly to Firestore;
+Firestore rejects arrays inside arrays.
 
 Quiz/flashcard results live in Firestore collection `results`.
 

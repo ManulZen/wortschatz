@@ -5,6 +5,21 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-05 — Session 16: Storage CORS and series encoding
+
+**What changed:**
+- Added `storage-cors.json` for the Firebase Storage bucket so browser uploads from the Vercel app can pass CORS preflight
+- Fixed Firestore series seeding/editing so multi-answer words are stored as `{ alternatives: { "0": "...", "1": "..." } }` instead of nested arrays
+- Added compatibility decoding so the app still works internally with runtime arrays and can read any legacy/manual array entries
+- Updated `AGENTS.md` to document the Firestore-safe series word format
+
+**Important notes:**
+- The CORS file must be applied outside the app with Google Cloud tooling:
+  `gsutil cors set storage-cors.json gs://wortschatz-2046c.firebasestorage.app`
+- After deploy, missing default series 7 and 9 should seed successfully on the next app load
+
+---
+
 ## 2026-05-05 — Session 15: Blaze Storage audio check
 
 **What changed:**

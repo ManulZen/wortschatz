@@ -1607,6 +1607,40 @@ function displayWord(entry) {
   return entry;
 }
 
+function cloneWords(words) {
+  return JSON.parse(JSON.stringify(words));
+}
+
+function encodeWordForFirestore(entry) {
+  if (!Array.isArray(entry)) return entry;
+  return {
+    alternatives: entry.reduce((acc, word, idx) => {
+      acc[idx] = word;
+      return acc;
+    }, {})
+  };
+}
+
+function decodeWordFromFirestore(entry) {
+  if (Array.isArray(entry)) return entry;
+  if (!entry || typeof entry !== 'object') return entry;
+  if (entry.alternatives && typeof entry.alternatives === 'object') {
+    return Object.keys(entry.alternatives)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(k => entry.alternatives[k])
+      .filter(Boolean);
+  }
+  return entry.word || '';
+}
+
+function encodeWordsForFirestore(words) {
+  return words.map(encodeWordForFirestore);
+}
+
+function decodeWordsFromFirestore(words) {
+  return words.map(decodeWordFromFirestore).filter(Boolean);
+}
+
 function audioKey(entry) {
   const canonical = getCanonical(entry).trim();
   const bytes = new TextEncoder().encode(canonical);
@@ -2803,7 +2837,7 @@ async function loadSeries() {
       const d = doc.data();
       const num = Number(doc.id);
       if (num && d.words && Array.isArray(d.words)) {
-        SERIES[num] = d.words;
+        SERIES[num] = decodeWordsFromFirestore(d.words);
         SERIES_AUDIO[num] = d.audio || {};
         SERIES_REFRESHED_AT[num] = Date.now();
       }
@@ -2813,13 +2847,16 @@ async function loadSeries() {
     if (missing.length > 0) {
       console.log('Seeding missing series:', missing.join(', '));
       missing.forEach(num => {
-        SERIES[num] = JSON.parse(JSON.stringify(DEFAULT_SERIES[num]));
+        SERIES[num] = cloneWords(DEFAULT_SERIES[num]);
         SERIES_AUDIO[num] = {};
         SERIES_REFRESHED_AT[num] = Date.now();
       });
       for (const num of missing) {
         try {
-          await db.collection('custom_series').doc(String(num)).set({ words: DEFAULT_SERIES[num], created: Date.now() });
+          await db.collection('custom_series').doc(String(num)).set({
+            words: encodeWordsForFirestore(DEFAULT_SERIES[num]),
+            created: Date.now()
+          });
         } catch(e) {
           console.warn('Failed to seed series ' + num + ':', e.message);
         }
@@ -2827,7 +2864,7 @@ async function loadSeries() {
     }
   } catch(e) {
     console.warn('Firestore unavailable, using defaults:', e);
-    SERIES = JSON.parse(JSON.stringify(DEFAULT_SERIES));
+    SERIES = cloneWords(DEFAULT_SERIES);
     SERIES_AUDIO = {};
     SERIES_REFRESHED_AT = {};
   }
@@ -2845,7 +2882,7 @@ async function refreshSeriesFromFirestore(num, force) {
     SERIES_REFRESHED_AT[num] = Date.now();
     if (!doc.exists) return;
     const data = doc.data();
-    if (Array.isArray(data.words)) SERIES[num] = data.words;
+    if (Array.isArray(data.words)) SERIES[num] = decodeWordsFromFirestore(data.words);
     SERIES_AUDIO[num] = data.audio || {};
   } catch(e) {
     console.warn('Could not refresh series ' + num + ' before playback:', e.message);
@@ -2877,7 +2914,7 @@ async function addSeries() {
 
   try {
     await db.collection('custom_series').doc(String(nextNum)).set({
-      words,
+      words: encodeWordsForFirestore(words),
       created: Date.now()
     });
     SERIES[nextNum] = words;
@@ -2985,7 +3022,7 @@ function editSeries(num) {
     const newWords = parseSeriesInput(input.value);
     if (newWords.length < 2) { alert('Mindestens 2 Wörter.'); return; }
     try {
-      await db.collection('custom_series').doc(String(num)).set({ words: newWords }, { merge: true });
+      await db.collection('custom_series').doc(String(num)).set({ words: encodeWordsForFirestore(newWords) }, { merge: true });
       SERIES[num] = newWords;
       renderSeriesManager();
     } catch(e) { alert('Fehler: ' + e.message); }

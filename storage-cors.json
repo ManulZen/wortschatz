@@ -1,0 +1,21 @@
+[
+  {
+    "origin": [
+      "https://wortschatz-vert.vercel.app",
+      "http://localhost:4173",
+      "http://127.0.0.1:4173"
+    ],
+    "method": ["GET", "HEAD", "POST", "PUT", "DELETE"],
+    "responseHeader": [
+      "Authorization",
+      "Content-Type",
+      "x-firebase-storage-version",
+      "x-goog-upload-command",
+      "x-goog-upload-header-content-length",
+      "x-goog-upload-header-content-type",
+      "x-goog-upload-protocol",
+      "x-goog-upload-url"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
