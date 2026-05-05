@@ -643,6 +643,26 @@ body {
 .next-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 20px rgba(46,204,113,0.36); }
 .next-btn:active { transform: translateY(0) scale(0.97); }
 
+.retry-answer-btn {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 12px 24px;
+  border: 2px solid rgba(27,166,166,0.24);
+  border-radius: 14px;
+  background: #F7FFFF;
+  color: var(--primary-dark);
+  cursor: pointer;
+  margin: 16px 8px 0 0;
+  touch-action: manipulation;
+}
+
+.retry-answer-btn:hover,
+.retry-answer-btn:focus-visible {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
 /* --- RESULTS --- */
 .results-screen {
   min-height: 100vh;
@@ -1471,6 +1491,7 @@ body {
     </div>
     <div class="feedback hidden" id="feedback"></div>
     <div class="correction hidden" id="correction"></div>
+    <button class="retry-answer-btn hidden" id="retryAnswerBtn" onclick="retryCurrentWord()">Nochmal probieren</button>
     <button class="next-btn hidden" id="nextBtn" onclick="nextWord()">Weiter →</button>
   </div>
 </div>
@@ -1622,6 +1643,7 @@ let words = [];       // current quiz word list (entries may be string or array)
 let results = [];
 let answered = false;
 let hintState = { level: 0, max: 0 };
+let currentAttempt = null;
 let quizSessionId = '';
 let quizStartedAt = 0;
 let quizWrongOnly = false;
@@ -1636,6 +1658,8 @@ let SERIES_REFRESHED_AT = {};
 let audioCache = {};
 let audioManagerSeries = null;
 let recorderState = {
+  num: null,
+  entry: null,
   key: null,
   recorder: null,
   stream: null,
@@ -1755,6 +1779,17 @@ function normalizeHints(record) {
       level: Math.max(1, Math.min(3, Number(h.level) || 1))
     }))
     .filter(h => h.word);
+}
+
+function normalizeRetries(record) {
+  const source = Array.isArray(record.retriesUsed) ? record.retriesUsed : [];
+  return source
+    .map(r => ({
+      word: String(r.word || '').trim(),
+      attempts: Math.max(2, Number(r.attempts) || 2),
+      solved: !!r.solved
+    }))
+    .filter(r => r.word);
 }
 
 function isFullQuizRecord(record) {
@@ -2164,11 +2199,15 @@ function resumeQuiz() {
 function quizProgressPayload(partial) {
   const correctCount = results.filter(r => r.correct).length;
   const mistakes = results
-    .filter(r => !r.correct)
-    .map(r => ({ word: getCanonical(r.entry), typed: r.typed || null }));
+    .flatMap(r => (r.attempts || [{ typed: r.typed, correct: r.correct }])
+      .filter(a => !a.correct)
+      .map(a => ({ word: getCanonical(r.entry), typed: a.typed || null })));
   const hintsUsed = results
-    .filter(r => r.hintLevel > 0)
-    .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel }));
+    .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel || 0 }))
+    .filter(r => r.level > 0);
+  const retriesUsed = results
+    .filter(r => (r.attempts || []).length > 1)
+    .map(r => ({ word: getCanonical(r.entry), attempts: r.attempts.length, solved: !!r.correct }));
   return {
     mode: partial ? 'quiz_partial' : 'quiz',
     practiceType: quizWrongOnly ? 'retry' : 'full',
@@ -2179,6 +2218,7 @@ function quizProgressPayload(partial) {
     total: partial ? words.length : results.length,
     mistakes,
     hintsUsed,
+    retriesUsed,
     started: quizStartedAt || Date.now(),
     updated: Date.now()
   };
@@ -2210,6 +2250,7 @@ async function clearPartialProgress() {
 
 function loadQuestion() {
   answered = false;
+  currentAttempt = null;
   const entry = words[currentIndex];
   hintState = {
     level: 0,
@@ -2224,7 +2265,9 @@ function loadQuestion() {
   document.getElementById('correction').classList.add('hidden');
   document.getElementById('hintBox').classList.add('hidden');
   document.getElementById('hintBox').textContent = '';
+  document.getElementById('retryAnswerBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.add('hidden');
+  document.getElementById('nextBtn').textContent = 'Weiter →';
   document.getElementById('checkBtn').disabled = false;
   updateHintAvailability();
   updateProgress();
@@ -2252,6 +2295,26 @@ function showNextHint() {
   hintBox.textContent = buildHint(words[currentIndex], hintState.level);
   updateHintAvailability();
   document.getElementById('wordInput').focus();
+}
+
+function retryCurrentWord() {
+  if (!answered || !currentAttempt || currentAttempt.attempts.length > 1) return;
+  answered = false;
+  const input = document.getElementById('wordInput');
+  input.value = '';
+  input.className = 'word-input';
+  input.disabled = false;
+  input.focus();
+  const fb = document.getElementById('feedback');
+  fb.classList.remove('wrong', 'correct');
+  fb.classList.add('hidden');
+  document.getElementById('correction').classList.add('hidden');
+  document.getElementById('retryAnswerBtn').classList.add('hidden');
+  document.getElementById('nextBtn').classList.add('hidden');
+  document.getElementById('checkBtn').disabled = false;
+  hintState.max = Math.max(hintState.max, 1);
+  updateHintAvailability();
+  speakWord();
 }
 
 async function speakCurrent(btnId, index) {
@@ -2320,27 +2383,44 @@ function checkAnswer() {
   const capitalizationFix = !correct && capitalizedTyped !== typed && isCorrectAnswer(entry, capitalizedTyped);
   const finalCorrect = correct || capitalizationFix;
   const savedTyped = capitalizationFix ? capitalizedTyped : typed;
-
-  results.push({ entry, typed: savedTyped, correct: finalCorrect, hintLevel: hintState.level });
+  const attempt = { typed: savedTyped, correct: finalCorrect, hintLevel: hintState.level };
+  if (!currentAttempt) {
+    currentAttempt = { entry, typed: savedTyped, correct: finalCorrect, hintLevel: hintState.level, attempts: [attempt] };
+    results.push(currentAttempt);
+  } else {
+    currentAttempt.attempts.push(attempt);
+    currentAttempt.typed = savedTyped;
+    currentAttempt.correct = finalCorrect;
+    currentAttempt.hintLevel = Math.max(currentAttempt.hintLevel || 0, hintState.level);
+  }
 
   if (finalCorrect) {
     input.className = 'word-input correct';
     fb.classList.add('correct');
-    fb.textContent = capitalizationFix ? '✓ Richtig, mit grossem Anfangsbuchstaben!' : '✓ Richtig!';
+    fb.textContent = currentAttempt.attempts.length > 1
+      ? '✓ Jetzt stimmt es!'
+      : capitalizationFix ? '✓ Richtig, mit grossem Anfangsbuchstaben!' : '✓ Richtig!';
     if (capitalizationFix) input.value = capitalizedTyped;
     corr.classList.add('hidden');
   } else {
     input.className = 'word-input wrong';
     fb.classList.add('wrong');
-    fb.innerHTML = '✗ Leider falsch';
-    corr.classList.remove('hidden');
-    corr.innerHTML = `Richtig: <span style="color:var(--success);font-size:1.3rem;font-weight:800">${esc(displayWord(entry))}</span>`;
+    if (currentAttempt.attempts.length === 1) {
+      fb.textContent = 'Noch nicht ganz. Du kannst es nochmal versuchen.';
+      corr.classList.add('hidden');
+      document.getElementById('retryAnswerBtn').classList.remove('hidden');
+    } else {
+      fb.innerHTML = '✗ Leider falsch';
+      corr.classList.remove('hidden');
+      corr.innerHTML = `Richtig: <span style="color:var(--success);font-size:1.3rem;font-weight:800">${esc(displayWord(entry))}</span>`;
+    }
   }
 
   input.disabled = true;
   document.getElementById('checkBtn').disabled = true;
   document.getElementById('hintBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.remove('hidden');
+  document.getElementById('nextBtn').textContent = finalCorrect || currentAttempt.attempts.length > 1 ? 'Weiter →' : 'Weiter ohne nochmal';
   updateProgress();
   savePartialProgress();
 }
@@ -2369,7 +2449,9 @@ function showResults() {
   const total = results.length;
   const pct = Math.round((correctCount / total) * 100);
 
-  const wrongEntries = results.filter(r => !r.correct).map(r => r.entry);
+  const wrongEntries = results
+    .filter(r => !r.correct || (r.attempts || []).some(a => !a.correct))
+    .map(r => r.entry);
   const hintsUsed = results
     .filter(r => r.hintLevel > 0)
     .map(r => ({ word: getCanonical(r.entry), level: r.hintLevel }));
@@ -2414,11 +2496,15 @@ function showResults() {
   }
 
   const mistakesEl = document.getElementById('mistakesList');
-  const wrong = results.filter(r => !r.correct);
+  const wrong = results.filter(r => !r.correct || (r.attempts || []).some(a => !a.correct));
   if (wrong.length > 0) {
     mistakesEl.classList.remove('hidden');
     mistakesEl.innerHTML = '<h4>Diese Wörter nochmal anschauen:</h4><ul>' +
-      wrong.map(r => `<li><span class="typed">${esc(r.typed)}</span> → <span class="correct-word">${esc(displayWord(r.entry))}</span></li>`).join('') +
+      wrong.map(r => {
+        const firstWrong = (r.attempts || [{ typed: r.typed, correct: r.correct }]).find(a => !a.correct);
+        const solved = r.correct && firstWrong;
+        return `<li><span class="typed">${esc(firstWrong?.typed || r.typed || '')}</span> → <span class="correct-word">${esc(displayWord(r.entry))}</span>${solved ? ' <span>geschafft</span>' : ''}</li>`;
+      }).join('') +
       '</ul>';
     document.getElementById('retryWrongBtn').classList.remove('hidden');
   } else {
@@ -2740,6 +2826,7 @@ async function loadTeacherDashboard() {
           total: r.total,
           mistakes: normalizeMistakes(r),
           hintsUsed: normalizeHints(r),
+          retriesUsed: normalizeRetries(r),
           ts: r.updated || r.ts || 0
         });
       } else {
@@ -2749,6 +2836,7 @@ async function loadTeacherDashboard() {
           practiceType: practiceTypeForRecord(r),
           mistakes: normalizeMistakes(r),
           hintsUsed: normalizeHints(r),
+          retriesUsed: normalizeRetries(r),
           ts: r.ts || 0
         });
       }
@@ -3155,18 +3243,19 @@ function showStudentDetail(animal, data) {
       const pct = c / t;
       const cls = pct >= 0.8 ? 'good' : pct >= 0.5 ? 'mid' : 'poor';
       const hints = normalizeHints(q);
+      const retries = normalizeRetries(q);
       const label = q.practiceType === 'retry' ? 'Üben ' : '';
-      return `<span class="sp-attempt ${cls}" title="${esc(formatDateTime(q.ts))}${hints.length ? ' · Tipps: ' + hints.length : ''}">${label}${c}/${t}${hints.length ? ' · Tipp' : ''}</span>`;
+      return `<span class="sp-attempt ${cls}" title="${esc(formatDateTime(q.ts))}${hints.length ? ' · Tipps: ' + hints.length : ''}${retries.length ? ' · nochmal probiert: ' + retries.length : ''}">${label}${c}/${t}${hints.length ? ' · Tipp' : ''}${retries.length ? ' · nochmal' : ''}</span>`;
     }).join('');
 
     const timeline = buildPracticeTimeline(d).map(event => {
       let right = '<strong>Karteikarten</strong>';
       if (event.kind === 'quiz') {
-        right = `<strong>Diktat ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`;
+        right = `<strong>Diktat ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}${event.retries > 0 ? ' <span class="sp-hint-used">nochmal</span>' : ''}`;
       } else if (event.kind === 'retry') {
-        right = `<strong>Fehlerübung ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}`;
+        right = `<strong>Fehlerübung ${event.correct}/${event.total}</strong>${event.hints > 0 ? ` <span class="sp-hint-used">Tipp ${event.maxHint}</span>` : ''}${event.retries > 0 ? ' <span class="sp-hint-used">nochmal</span>' : ''}`;
       } else if (event.kind === 'partial') {
-        right = `<strong>angefangen ${event.answered}/${event.total}</strong>${event.hints > 0 ? ' <span class="sp-hint-used">Tipp</span>' : ''}`;
+        right = `<strong>angefangen ${event.answered}/${event.total}</strong>${event.hints > 0 ? ' <span class="sp-hint-used">Tipp</span>' : ''}${event.retries > 0 ? ' <span class="sp-hint-used">nochmal</span>' : ''}`;
       }
       return `<div class="sp-event"><span>${esc(formatDateTime(event.ts))}</span><span>${right}</span></div>`;
     }).join('');
@@ -3182,6 +3271,9 @@ function showStudentDetail(animal, data) {
     const hintTags = summarizeHintDetails(d.quizzes.concat(d.partials))
       .map(h => `<span class="sp-mistake-tag">${esc(h.word)} · Tipp ${h.maxLevel}${h.count > 1 ? ' · ' + h.count + '\u00d7' : ''}</span>`)
       .join('');
+    const retryTags = summarizeRetryDetails(d.quizzes.concat(d.partials))
+      .map(r => `<span class="sp-mistake-tag">${esc(r.word)} · nochmal${r.count > 1 ? ' · ' + r.count + '\u00d7' : ''}</span>`)
+      .join('');
 
     const partial = d.partials.length > 0 ? `<div class="sp-flash">${d.partials.length} angefangen${d.partials.length === 1 ? '' : 'e'} Teilversuch${d.partials.length === 1 ? '' : 'e'}</div>` : '';
     const flash = d.flashcards > 0 ? `<div class="sp-flash">\ud83c\udccf ${d.flashcards} Karteikarten</div>` : '';
@@ -3193,6 +3285,7 @@ function showStudentDetail(animal, data) {
       ${mistakeTags ? '<div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
       ${mistakePairs ? '<div class="sp-mistake-pairs">' + mistakePairs + '</div>' : ''}
       ${hintTags ? '<h3>Genutzte Tipps</h3><div class="sp-mistakes">' + hintTags + '</div>' : ''}
+      ${retryTags ? '<h3>Nochmal probiert</h3><div class="sp-mistakes">' + retryTags + '</div>' : ''}
       ${partial}
       ${flash}
     </div>`;
@@ -3235,16 +3328,28 @@ function summarizeHintDetails(quizzes) {
   return Object.values(counts).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
 }
 
+function summarizeRetryDetails(quizzes) {
+  const counts = {};
+  quizzes.forEach(q => normalizeRetries(q).forEach(r => {
+    const key = r.word;
+    if (!counts[key]) counts[key] = { word: r.word, count: 0 };
+    counts[key].count++;
+  }));
+  return Object.values(counts).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
+}
+
 function buildPracticeTimeline(seriesData) {
   const quizEvents = seriesData.quizzes.map(q => {
     const hints = normalizeHints(q);
+    const retries = normalizeRetries(q);
     return {
       kind: q.practiceType === 'retry' ? 'retry' : 'quiz',
       ts: q.ts || 0,
       correct: Number(q.correct) || 0,
       total: Number(q.total) || 0,
       hints: hints.length,
-      maxHint: hints.reduce((max, h) => Math.max(max, h.level), 0)
+      maxHint: hints.reduce((max, h) => Math.max(max, h.level), 0),
+      retries: retries.length
     };
   });
   const partialEvents = (seriesData.partials || []).map(p => ({
@@ -3253,7 +3358,8 @@ function buildPracticeTimeline(seriesData) {
     correct: Number(p.correct) || 0,
     answered: Number(p.answered) || 0,
     total: Number(p.total) || 0,
-    hints: normalizeHints(p).length
+    hints: normalizeHints(p).length,
+    retries: normalizeRetries(p).length
   }));
   const flashEvents = (seriesData.flashcardTimes || []).map(ts => ({ kind: 'flashcard', ts: ts || 0 }));
   return quizEvents.concat(partialEvents, flashEvents).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 8);
@@ -3575,7 +3681,7 @@ function recordingContentType(blob, fallback) {
 }
 
 function resetRecorderState() {
-  recorderState = { key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '', saving: false };
+  recorderState = { num: null, entry: null, key: null, recorder: null, stream: null, chunks: [], blob: null, mimeType: '', saving: false };
 }
 
 async function saveSeriesAudioMap(num, audioMap) {
@@ -3637,13 +3743,17 @@ async function startRecording(num, entry) {
     alert('Aufnahme ist in diesem Browser nicht verfügbar.');
     return;
   }
-  stopRecording();
   const key = audioKey(entry);
+  if (recorderState.blob && recorderState.key && (recorderState.key !== key || recorderState.num !== num)) {
+    const saved = await saveCurrentRecordingDraft();
+    if (!saved) return;
+  }
+  stopRecording();
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = pickRecordingMimeType();
     const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    recorderState = { key, recorder, stream, chunks: [], blob: null, mimeType: recorder.mimeType || mimeType || 'audio/webm', saving: false };
+    recorderState = { num, entry, key, recorder, stream, chunks: [], blob: null, mimeType: recorder.mimeType || mimeType || 'audio/webm', saving: false };
     recorder.ondataavailable = event => {
       if (event.data && event.data.size > 0) recorderState.chunks.push(event.data);
     };
@@ -3658,6 +3768,14 @@ async function startRecording(num, entry) {
     stopRecording();
     alert('Mikrofon konnte nicht gestartet werden: ' + e.message);
   }
+}
+
+async function saveCurrentRecordingDraft() {
+  if (!recorderState.blob || recorderState.num == null || !recorderState.entry) return true;
+  const word = displayWord(recorderState.entry);
+  const status = document.getElementById('audioStatus-' + recorderState.key);
+  if (status) status.textContent = `speichert Entwurf für "${word}" …`;
+  return saveRecording(recorderState.num, recorderState.entry);
 }
 
 function stopRecording() {
@@ -3690,11 +3808,11 @@ function playLocalUrl(url, revokeAfter) {
 
 async function saveRecording(num, entry) {
   const key = audioKey(entry);
-  if (recorderState.saving || recorderState.key !== key || !recorderState.blob) return;
+  if (recorderState.saving || recorderState.key !== key || !recorderState.blob) return false;
   const blob = recorderState.blob;
   if (blob.size === 0) {
     alert('Die Aufnahme ist leer. Bitte noch einmal aufnehmen und danach speichern.');
-    return;
+    return false;
   }
   recorderState.saving = true;
   renderSeriesManager();
@@ -3724,10 +3842,12 @@ async function saveRecording(num, entry) {
     SERIES_AUDIO[num] = audioMap;
     resetRecorderState();
     renderSeriesManager();
+    return true;
   } catch(e) {
     alert('Aufnahme konnte nicht gespeichert werden: ' + recordingSaveErrorMessage(e));
     recorderState.saving = false;
     renderSeriesManager();
+    return false;
   }
 }
 

@@ -5,6 +5,38 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-05 — Session 20: Recording draft autosave on next recording
+
+**What changed:**
+- Teacher recording drafts now remember their series and word in `recorderState`
+- Starting a recording for a different word automatically saves the current draft first
+- If the autosave fails, the next recording does not start, so the teacher can retry without losing the draft
+- `saveRecording()` now returns a success boolean for manual saves and autosaves
+- Updated `AGENTS.md` to document autosave-on-next-recording behavior
+
+**Important notes:**
+- This only autosaves completed local drafts; while a recording is actively running, other recording buttons remain disabled as before
+- Students still only hear a recording after the Storage upload and Firestore `audio` metadata save succeed
+
+---
+
+## 2026-05-05 — Session 19: Optional immediate retry for wrong words
+
+**What changed:**
+- Wrong quiz answers now offer an optional "Nochmal probieren" action before moving on
+- The correct spelling is withheld after the first wrong attempt, then shown after a second wrong attempt
+- Hints can be used before the retry attempt, making progressive hints useful inside the same question
+- Quiz result payloads now optionally include `retriesUsed: [{word, attempts, solved}]`
+- Mistakes still include wrong first attempts even when the word is solved on retry
+- Teacher student details show retry usage in attempt chips, timeline rows, and a "Nochmal probiert" summary
+- Documented `retriesUsed` in `AGENTS.md`
+
+**Important notes:**
+- Only one immediate retry is offered per word to avoid trapping children in a frustrating loop
+- This feature is separate from the planned "Schwierige Wörter" spaced practice mode
+
+---
+
 ## 2026-05-05 — Session 18: Partial quiz resume and clearer practice types
 
 **What changed:**

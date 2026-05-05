@@ -89,6 +89,9 @@ Quiz/flashcard results live in Firestore collection `results`.
   hintsUsed: [
     { word: "wieder", level: 2 }
   ],
+  retriesUsed: [
+    { word: "nehmen", attempts: 2, solved: true }
+  ],
   mistakes: [
     { word: "gross", typed: "gros" },
     { word: "wieder", typed: null }
@@ -98,6 +101,7 @@ Quiz/flashcard results live in Firestore collection `results`.
 
 `mistakes` must use the object format above. Legacy string mistakes are migrated from the teacher dashboard to `{word, typed: null}`.
 `hintsUsed` is optional and records student-visible progressive hints used during a quiz. `level` is 1–3, where higher levels reveal more structure but never the full word.
+`retriesUsed` is optional and records words that were tried again inside the same quiz question. Wrong first attempts still remain in `mistakes` even if the second attempt is correct.
 
 Started but unfinished dictations are stored as overwriteable partial docs, not as final scores:
 
@@ -151,7 +155,8 @@ Partial docs are updated after answered words and deleted when the quiz complete
 - Teacher recordings are drafts until `Speichern`:
   - Draft blob stays only in `recorderState.blob`
   - `Prüfen` plays the local draft only for the teacher
-  - Upload to Storage and Firestore metadata update happen only in `saveRecording()`
+  - Upload to Storage and Firestore metadata update happen in `saveRecording()`
+  - Starting a recording for a different word automatically saves the current draft first; if that save fails, the new recording does not start
   - Students see recordings only after the Firestore `audio` map is updated
 
 ## Teacher View
