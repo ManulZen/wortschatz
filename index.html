@@ -618,6 +618,13 @@ body {
 
 .feedback.correct { color: var(--success); }
 .feedback.wrong { color: var(--error); }
+.feedback.coach {
+  color: #8A5D00;
+  background: #FFF8E1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 0;
+}
 
 .correction {
   font-size: 1.1rem;
@@ -1036,6 +1043,14 @@ body {
   font-size: 0.82rem;
   font-weight: 700;
 }
+.analysis-tag.warn {
+  background: #FFF4E5;
+  color: #A15C00;
+}
+.analysis-tag.danger {
+  background: var(--error-bg);
+  color: var(--error);
+}
 .analysis-muted {
   color: var(--text-light);
   font-size: 0.86rem;
@@ -1172,6 +1187,7 @@ body {
 .sp-mistakes { display: flex; flex-wrap: wrap; gap: 6px; }
 .sp-mistake-tag { font-size: 0.78rem; padding: 3px 8px; border-radius: 8px; background: var(--error-bg); color: var(--error); font-weight: 600; }
 .sp-mistake-tag.help { background: #FFF8E1; color: #8A5D00; }
+.sp-mistake-tag.warn { background: #FFF4E5; color: #A15C00; }
 .sp-mistake-pairs { display: grid; gap: 5px; margin-top: 8px; }
 .sp-mistake-pair { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.78rem; }
 .sp-mistake-pair .typed { color: var(--error); text-decoration: line-through; font-weight: 700; }
@@ -1454,7 +1470,7 @@ body {
     <div class="mode-card" role="button" tabindex="0" onclick="startQuiz(false)" onkeydown="activateOnKey(event, () => startQuiz(false))">
       <div class="mode-icon">✏️</div>
       <h3>Diktat-Modus</h3>
-      <p>Höre das Wort und schreibe es richtig. Du bekommst sofort eine Rückmeldung.</p>
+      <p>Höre das Wort, sprich es leise nach und schreibe es. Tipps helfen, wenn du unsicher bist.</p>
     </div>
     <div class="mode-card hidden" id="resumeQuizCard" role="button" tabindex="0" onclick="resumeQuiz()" onkeydown="activateOnKey(event, resumeQuiz)">
       <div class="mode-icon">⏯</div>
@@ -1464,7 +1480,7 @@ body {
     <div class="mode-card" id="retryWrongCard" role="button" tabindex="0" onclick="startQuiz(true)" onkeydown="activateOnKey(event, () => startQuiz(true))">
       <div class="mode-icon">🔁</div>
       <h3>Fehler üben</h3>
-      <p>Nur die Wörter aus dem letzten Versuch, die falsch waren.</p>
+      <p>Nur die schwierigen Wörter. Hör langsam, nutze Tipps und versuche sie bewusst nochmal.</p>
     </div>
     <div class="mode-card" role="button" tabindex="0" onclick="startFlashcards()" onkeydown="activateOnKey(event, startFlashcards)">
       <div class="mode-icon">🤔</div>
@@ -1867,6 +1883,43 @@ function formatRelativePractice(ts) {
 
 function normalizeWordKey(word) {
   return String(word || '').trim().toLowerCase();
+}
+
+function looseWordKey(word) {
+  return normalizeWordKey(word)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss');
+}
+
+function editDistance(a, b) {
+  a = looseWordKey(a);
+  b = looseWordKey(b);
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+  for (let i = 0; i < rows; i++) dp[i][0] = i;
+  for (let j = 0; j < cols; j++) dp[0][j] = j;
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function looksLikeGuess(typed, word) {
+  const typedKey = looseWordKey(typed);
+  const wordKey = looseWordKey(word);
+  if (!typedKey || !wordKey) return false;
+  if (typedKey.length <= 1 && wordKey.length >= 4) return true;
+  const maxLen = Math.max(typedKey.length, wordKey.length, 1);
+  const distance = editDistance(typedKey, wordKey);
+  return distance / maxLen >= 0.65 && typedKey.slice(0, 2) !== wordKey.slice(0, 2);
 }
 
 function mistakeCountForEntry(seriesNum, entry) {
@@ -2281,7 +2334,7 @@ function loadQuestion() {
   const entry = words[currentIndex];
   hintState = {
     level: 0,
-    max: maxHintLevelForMistakes(mistakeCountForEntry(currentSeries, entry))
+    max: Math.max(1, maxHintLevelForMistakes(mistakeCountForEntry(currentSeries, entry)))
   };
   const input = document.getElementById('wordInput');
   input.value = '';
@@ -2293,6 +2346,7 @@ function loadQuestion() {
   document.getElementById('hintBox').classList.add('hidden');
   document.getElementById('hintBox').textContent = '';
   document.getElementById('retryAnswerBtn').classList.add('hidden');
+  document.getElementById('retryAnswerBtn').textContent = 'Anhören und nochmal schreiben';
   document.getElementById('nextBtn').classList.add('hidden');
   document.getElementById('nextBtn').textContent = 'Weiter →';
   document.getElementById('checkBtn').disabled = false;
@@ -2317,11 +2371,23 @@ function updateHintAvailability() {
 function showNextHint() {
   if (answered || hintState.level >= hintState.max) return;
   hintState.level++;
+  showCurrentHint();
+  updateHintAvailability();
+  document.getElementById('wordInput').focus();
+}
+
+function showCurrentHint() {
+  if (hintState.level <= 0) return;
   const hintBox = document.getElementById('hintBox');
   hintBox.classList.remove('hidden');
   hintBox.textContent = buildHint(words[currentIndex], hintState.level);
+}
+
+function ensureFirstHint() {
+  hintState.max = Math.max(hintState.max, 1);
+  if (hintState.level < 1) hintState.level = 1;
+  showCurrentHint();
   updateHintAvailability();
-  document.getElementById('wordInput').focus();
 }
 
 function retryCurrentWord() {
@@ -2333,13 +2399,13 @@ function retryCurrentWord() {
   input.disabled = false;
   input.focus();
   const fb = document.getElementById('feedback');
-  fb.classList.remove('wrong', 'correct');
+  fb.classList.remove('wrong', 'correct', 'coach');
   fb.classList.add('hidden');
   document.getElementById('correction').classList.add('hidden');
   document.getElementById('retryAnswerBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.add('hidden');
   document.getElementById('checkBtn').disabled = false;
-  hintState.max = Math.max(hintState.max, 1);
+  ensureFirstHint();
   updateHintAvailability();
   speakWord();
 }
@@ -2393,19 +2459,32 @@ function checkAnswer() {
   const typed = input.value.trim();
   const fb = document.getElementById('feedback');
   const corr = document.getElementById('correction');
-  fb.classList.remove('hidden', 'correct', 'wrong');
+  fb.classList.remove('hidden', 'correct', 'wrong', 'coach');
   corr.classList.add('hidden');
   if (!typed) {
     input.className = 'word-input empty';
+    fb.classList.add('coach');
     fb.textContent = 'Hör noch einmal genau hin.';
+    ensureFirstHint();
+    speakWord();
+    input.focus();
+    return;
+  }
+
+  const entry = words[currentIndex];
+  if (looksLikeGuess(typed, getCanonical(entry)) && typed.length <= 1) {
+    input.className = 'word-input empty';
+    fb.classList.add('coach');
+    fb.textContent = 'Das war noch zu wenig. Hör nochmal und schreibe das ganze Wort.';
+    ensureFirstHint();
     speakWord();
     input.focus();
     return;
   }
 
   answered = true;
-  const entry = words[currentIndex];
   const correct = isCorrectAnswer(entry, typed);
+  const guessed = !correct && looksLikeGuess(typed, getCanonical(entry));
   const capitalizedTyped = capitalizeFirst(typed);
   const capitalizationFix = !correct && capitalizedTyped !== typed && isCorrectAnswer(entry, capitalizedTyped);
   const finalCorrect = correct || capitalizationFix;
@@ -2433,9 +2512,13 @@ function checkAnswer() {
     input.className = 'word-input wrong';
     fb.classList.add('wrong');
     if (currentAttempt.attempts.length === 1) {
-      fb.textContent = 'Noch nicht ganz. Du kannst es nochmal versuchen.';
+      ensureFirstHint();
+      fb.textContent = guessed
+        ? 'Hör nochmal genau hin. Nutze den Tipp und versuche das Wort noch einmal.'
+        : 'Noch nicht ganz. Nutze den Tipp und versuche es nochmal.';
       corr.classList.add('hidden');
       document.getElementById('retryAnswerBtn').classList.remove('hidden');
+      setTimeout(() => speakWord(), 250);
     } else {
       fb.innerHTML = '✗ Leider falsch';
       corr.classList.remove('hidden');
@@ -2447,7 +2530,7 @@ function checkAnswer() {
   document.getElementById('checkBtn').disabled = true;
   document.getElementById('hintBtn').classList.add('hidden');
   document.getElementById('nextBtn').classList.remove('hidden');
-  document.getElementById('nextBtn').textContent = finalCorrect || currentAttempt.attempts.length > 1 ? 'Weiter →' : 'Weiter ohne nochmal';
+  document.getElementById('nextBtn').textContent = finalCorrect || currentAttempt.attempts.length > 1 ? 'Weiter →' : 'Überspringen';
   updateProgress();
   savePartialProgress();
 }
@@ -2842,7 +2925,7 @@ async function loadTeacherDashboard() {
       if (!teacherData[r.animal]) teacherData[r.animal] = {};
       const s = r.series;
       if (!s) return;
-      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], partials: [], flashcards: 0, flashcardTimes: [] };
+      if (!teacherData[r.animal][s]) teacherData[r.animal][s] = { quizzes: [], partials: [], hiddenPartials: 0, flashcards: 0, flashcardTimes: [] };
       if (r.mode === 'flashcard') {
         teacherData[r.animal][s].flashcards++;
         teacherData[r.animal][s].flashcardTimes.push(r.ts || 0);
@@ -2868,6 +2951,7 @@ async function loadTeacherDashboard() {
         });
       }
     });
+    collapseStalePartials(teacherData);
 
     await loadLocks();
     renderLockedBar();
@@ -2877,11 +2961,12 @@ async function loadTeacherDashboard() {
     renderSeriesManager();
     const quizCount = docs.filter(d => isFullQuizRecord(d)).length;
     const retryCount = docs.filter(d => d.mode === 'quiz' && practiceTypeForRecord(d) === 'retry').length;
-    const partialCount = docs.filter(d => d.mode === 'quiz_partial').length;
+    const partialCount = countVisiblePartials(teacherData);
+    const hiddenPartialCount = countHiddenPartials(teacherData);
     const flashCount = docs.filter(d => d.mode === 'flashcard').length;
     const time = new Date().toLocaleTimeString('de-CH');
     document.getElementById('teacherMeta').textContent =
-      `${Object.keys(teacherData).length} Schüler · ${quizCount} fertige Diktate · ${retryCount} Fehlerübungen · ${partialCount} offene Zwischenstände · ${flashCount} Karteikarten · Stand: ${time}`;
+      `${Object.keys(teacherData).length} Schüler · ${quizCount} fertige Diktate · ${retryCount} Fehlerübungen · ${partialCount} offene Zwischenstände${hiddenPartialCount ? ' · ' + hiddenPartialCount + ' ältere ausgeblendet' : ''} · ${flashCount} Karteikarten · Stand: ${time}`;
   } catch(e) {
     document.getElementById('teacherGrid').innerHTML =
       `<p style="color:var(--error)">Fehler beim Laden: ${esc(e.message)}</p>`;
@@ -2908,6 +2993,32 @@ async function migrateMistakeFormat(docs) {
     });
     await batch.commit();
   }
+}
+
+function collapseStalePartials(teacherData) {
+  Object.values(teacherData).forEach(seriesMap => {
+    Object.values(seriesMap).forEach(d => {
+      d.hiddenPartials = 0;
+      if (!Array.isArray(d.partials) || d.partials.length === 0) return;
+      const latestCompleted = d.quizzes.reduce((max, q) => Math.max(max, q.ts || 0), 0);
+      const stillOpen = d.partials
+        .filter(p => (p.ts || 0) >= latestCompleted)
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      const stale = d.partials.length - stillOpen.length;
+      d.partials = stillOpen.slice(0, 1);
+      d.hiddenPartials = stale + Math.max(0, stillOpen.length - d.partials.length);
+    });
+  });
+}
+
+function countVisiblePartials(teacherData) {
+  return Object.values(teacherData).reduce((sum, seriesMap) =>
+    sum + Object.values(seriesMap).reduce((s, d) => s + (d.partials?.length || 0), 0), 0);
+}
+
+function countHiddenPartials(teacherData) {
+  return Object.values(teacherData).reduce((sum, seriesMap) =>
+    sum + Object.values(seriesMap).reduce((s, d) => s + (d.hiddenPartials || 0), 0), 0);
 }
 
 function updateTeacherLinks() {
@@ -2986,10 +3097,15 @@ function renderTeacherAnalysis(teacherData, docs) {
   const topMistakes = Object.entries(mistakeCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
+  const warningSignals = buildTeacherWarningSignals(teacherData).slice(0, 8);
 
   box.innerHTML = `<div class="teacher-analysis">
     <h2>Performance-Analyse</h2>
     <div class="analysis-grid">
+      <div class="analysis-card">
+        <h3>Warnsignale</h3>
+        ${warningSignals.length ? `<div class="analysis-list">${warningSignals.map(s => `<span class="analysis-tag ${s.level === 'danger' ? 'danger' : 'warn'}">${esc(s.label)}</span>`).join('')}</div>` : '<p class="analysis-muted">Keine auffälligen Muster.</p>'}
+      </div>
       <div class="analysis-card">
         <h3>Hilfebedarf</h3>
         ${support.length ? `<div class="analysis-list">${support.map(s => `<span class="analysis-tag">${ANIMAL_EMOJI[s.animal] || ''} ${esc(s.animal)} · ${Math.round(s.pct * 100)}%</span>`).join('')}</div>` : '<p class="analysis-muted">Aktuell kein klares Warnsignal.</p>'}
@@ -3004,6 +3120,80 @@ function renderTeacherAnalysis(teacherData, docs) {
       </div>
     </div>
   </div>`;
+}
+
+function buildTeacherWarningSignals(teacherData) {
+  const signals = [];
+  Object.entries(teacherData).forEach(([animal, seriesMap]) => {
+    let fullCorrect = 0;
+    let fullTotal = 0;
+    let fullCount = 0;
+    let retryWords = 0;
+    let retrySolved = 0;
+    let activePartials = 0;
+    let hiddenPartials = 0;
+    let knownMistakes = 0;
+    let guessedMistakes = 0;
+    let hints = 0;
+
+    Object.values(seriesMap).forEach(d => {
+      d.quizzes.forEach(q => {
+        if (q.practiceType === 'full') {
+          fullCount++;
+          fullCorrect += Number(q.correct) || 0;
+          fullTotal += Number(q.total) || 0;
+        }
+        normalizeRetries(q).forEach(r => {
+          retryWords++;
+          if (r.solved) retrySolved++;
+        });
+        hints += normalizeHints(q).length;
+        normalizeMistakes(q).forEach(m => {
+          if (m.typed == null) return;
+          knownMistakes++;
+          if (looksLikeGuess(m.typed, m.word)) guessedMistakes++;
+        });
+      });
+      d.partials.forEach(p => {
+        activePartials++;
+        hints += normalizeHints(p).length;
+        normalizeRetries(p).forEach(r => {
+          retryWords++;
+          if (r.solved) retrySolved++;
+        });
+        normalizeMistakes(p).forEach(m => {
+          if (m.typed == null) return;
+          knownMistakes++;
+          if (looksLikeGuess(m.typed, m.word)) guessedMistakes++;
+        });
+      });
+      hiddenPartials += d.hiddenPartials || 0;
+    });
+
+    const pct = fullTotal ? fullCorrect / fullTotal : null;
+    const guessRatio = knownMistakes ? guessedMistakes / knownMistakes : 0;
+    const retrySolvedRatio = retryWords ? retrySolved / retryWords : 1;
+
+    if (activePartials >= 3 || (!fullCount && activePartials >= 1)) {
+      signals.push({ level: activePartials >= 3 ? 'danger' : 'warn', score: 100 + activePartials, label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: Diktat nicht fertig` });
+    }
+    if (hiddenPartials >= 2) {
+      signals.push({ level: 'warn', score: 80 + hiddenPartials, label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: ${hiddenPartials} ältere Starts ausgeblendet` });
+    }
+    if (fullCount >= 1 && pct !== null && pct < 0.6) {
+      signals.push({ level: 'danger', score: 90 + Math.round((0.6 - pct) * 100), label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: ${Math.round(pct * 100)}% in Diktaten` });
+    }
+    if (knownMistakes >= 5 && guessRatio >= 0.35) {
+      signals.push({ level: 'danger', score: 85 + Math.round(guessRatio * 20), label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: wirkt wie Raten` });
+    }
+    if (retryWords >= 3 && retrySolvedRatio < 0.35) {
+      signals.push({ level: 'warn', score: 70 + retryWords, label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: Fehlerübung hilft noch wenig` });
+    }
+    if (knownMistakes >= 8 && hints === 0) {
+      signals.push({ level: 'warn', score: 60 + knownMistakes, label: `${ANIMAL_EMOJI[animal] || ''} ${animal}: nutzt keine Tipps` });
+    }
+  });
+  return signals.sort((a, b) => b.score - a.score);
 }
 
 function openPrintTemplates() {
@@ -3167,11 +3357,14 @@ function renderTeacherGrid(teacherData) {
       const d = teacherData[animal]?.[s];
       const fullQuizzes = d ? d.quizzes.filter(q => q.practiceType === 'full') : [];
       const retryQuizzes = d ? d.quizzes.filter(q => q.practiceType === 'retry') : [];
+      const openCount = d ? d.partials.length : 0;
+      const hiddenOpenCount = d ? (d.hiddenPartials || 0) : 0;
       if (!d || fullQuizzes.length === 0) {
         let fc = d ? d.flashcards : 0;
         const extras = [];
         if (retryQuizzes.length > 0) extras.push(`Üben ${retryQuizzes.length}×`);
-        if (d?.partials?.length > 0) extras.push(`offen ${d.partials.length}×`);
+        if (openCount > 0) extras.push(`offen ${openCount}×`);
+        if (hiddenOpenCount > 0) extras.push(`${hiddenOpenCount} älter`);
         if (fc > 0) extras.push(`🃏 ${fc}×`);
         cell.innerHTML = extras.length > 0
           ? `<span class="cell-none" title="${esc(extras.join(', '))}">${esc(extras[0])}</span>`
@@ -3190,13 +3383,14 @@ function renderTeacherGrid(teacherData) {
 
         let tooltip = `${fullQuizzes.length} Diktat(e)`;
         if (retryQuizzes.length > 0) tooltip += `, ${retryQuizzes.length} Fehlerübung(en)`;
-        if (d.partials.length > 0) tooltip += `, ${d.partials.length} offene Zwischenstände`;
+        if (openCount > 0) tooltip += `, ${openCount} offene Zwischenstände`;
+        if (hiddenOpenCount > 0) tooltip += `, ${hiddenOpenCount} ältere Zwischenstände ausgeblendet`;
         if (d.flashcards > 0) tooltip += `, ${d.flashcards} Karteikarten`;
         if (mistakeList.length > 0) tooltip += '\nHäufige Fehler: ' + mistakeList.slice(0, 5).map(([w, n]) => `${w} (${n}×)`).join(', ');
 
         cell.title = tooltip;
         cell.style.cursor = mistakeList.length > 0 ? 'help' : 'default';
-        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${fullQuizzes.length}×${retryQuizzes.length > 0 ? ' Ü' + retryQuizzes.length : ''}${d.partials.length > 0 ? ' offen' : ''}${d.flashcards > 0 ? ' 🃏' + d.flashcards : ''}</span>`;
+        cell.innerHTML = `<span class="${cls}">${c}/${t}</span><span class="attempt-count">${fullQuizzes.length}×${retryQuizzes.length > 0 ? ' Ü' + retryQuizzes.length : ''}${openCount > 0 ? ' offen' : ''}${hiddenOpenCount > 0 ? ' +' + hiddenOpenCount + ' alt' : ''}${d.flashcards > 0 ? ' 🃏' + d.flashcards : ''}</span>`;
       }
     });
 
@@ -3233,13 +3427,21 @@ async function deleteAnimalData(animal) {
   }
 }
 
+function buildStudentDetailWarnings(animal, data) {
+  const map = { [animal]: data };
+  return buildTeacherWarningSignals(map).map(signal => ({
+    level: signal.level,
+    text: signal.label.replace(`${ANIMAL_EMOJI[animal] || ''} ${animal}: `, '')
+  }));
+}
+
 // --- STUDENT DETAIL ---
 function showStudentDetail(animal, data) {
   const overlay = document.getElementById('studentOverlay');
   const seriesKeys = Object.keys(data).map(Number).sort((a, b) => a - b);
 
   // Summary stats
-  let totalQuizzes = 0, totalRetry = 0, totalPartial = 0, totalFlash = 0;
+  let totalQuizzes = 0, totalRetry = 0, totalPartial = 0, totalHiddenPartial = 0, totalFlash = 0;
   let latestPractice = 0;
   const globalMistakes = {};
   seriesKeys.forEach(s => {
@@ -3247,6 +3449,7 @@ function showStudentDetail(animal, data) {
     totalQuizzes += d.quizzes.filter(q => q.practiceType === 'full').length;
     totalRetry += d.quizzes.filter(q => q.practiceType === 'retry').length;
     totalPartial += d.partials.length;
+    totalHiddenPartial += d.hiddenPartials || 0;
     totalFlash += d.flashcards;
     d.quizzes.forEach(q => {
       countMistakeWords(q, globalMistakes);
@@ -3260,6 +3463,7 @@ function showStudentDetail(animal, data) {
       latestPractice = Math.max(latestPractice, ts || 0);
     });
   });
+  const studentWarnings = buildStudentDetailWarnings(animal, data);
 
   // Per-series cards
   const seriesHTML = seriesKeys.map(s => {
@@ -3267,6 +3471,7 @@ function showStudentDetail(animal, data) {
     const fullCount = d.quizzes.filter(q => q.practiceType === 'full').length;
     const retryCount = d.quizzes.filter(q => q.practiceType === 'retry').length;
     const partialCount = d.partials.length;
+    const hiddenPartialCount = d.hiddenPartials || 0;
     const attempts = d.quizzes.map(q => {
       const c = Number(q.correct) || 0;
       const t = Number(q.total) || 1;
@@ -3296,7 +3501,7 @@ function showStudentDetail(animal, data) {
     const mistakeTags = Object.entries(seriesMistakes).sort((a, b) => b[1] - a[1])
       .map(([w, n]) => `<span class="sp-mistake-tag">${esc(w)}${n > 1 ? ' ' + n + '\u00d7' : ''}</span>`).join('');
     const mistakePairs = summarizeMistakeDetails(d.quizzes.concat(d.partials))
-      .map(m => `<div class="sp-mistake-pair"><span class="typed">${esc(m.typed || 'leer')}</span><span>→</span><span class="correct">${esc(m.word)}</span>${m.count > 1 ? `<span class="count">${m.count}\u00d7</span>` : ''}</div>`)
+      .map(m => `<div class="sp-mistake-pair"><span class="typed">${esc(m.typed == null ? 'unbekannt' : (m.typed || 'leer'))}</span><span>→</span><span class="correct">${esc(m.word)}</span>${m.count > 1 ? `<span class="count">${m.count}\u00d7</span>` : ''}</div>`)
       .join('');
     const hintTags = summarizeHintDetails(d.quizzes.concat(d.partials))
       .map(h => `<span class="sp-mistake-tag help">${esc(h.word)} · bis Tipp ${h.maxLevel}${h.count > 1 ? ' · ' + h.count + '\u00d7' : ''}</span>`)
@@ -3305,11 +3510,13 @@ function showStudentDetail(animal, data) {
       .map(r => `<span class="sp-mistake-tag help">${esc(r.word)} · nochmal probiert${r.count > 1 ? ' · ' + r.count + '\u00d7' : ''}</span>`)
       .join('');
 
-    const partial = partialCount > 0 ? `<div class="sp-note">${partialCount} offene${partialCount === 1 ? 'r' : ''} Zwischenstand${partialCount === 1 ? '' : 'e'}: Diktat wurde begonnen und nicht fertig abgeschlossen.</div>` : '';
+    const partial = partialCount > 0 || hiddenPartialCount > 0
+      ? `<div class="sp-note">${partialCount > 0 ? `${partialCount} aktuell offene${partialCount === 1 ? 'r' : ''} Zwischenstand${partialCount === 1 ? '' : 'e'}. ` : ''}${hiddenPartialCount > 0 ? `${hiddenPartialCount} ältere Zwischenstände ausgeblendet. ` : ''}Ein Zwischenstand ist ein begonnenes, nicht fertig abgeschlossenes Diktat.</div>`
+      : '';
     const flash = d.flashcards > 0 ? `<div class="sp-flash">${d.flashcards} Karteikarten-Runde${d.flashcards === 1 ? '' : 'n'}</div>` : '';
 
     return `<div class="sp-series">
-      <div class="sp-series-head"><span>Serie ${s}</span><span class="sp-series-meta">${fullCount} fertig · ${retryCount} Fehlerübung · ${partialCount} offen · ${d.flashcards} Karteikarten</span></div>
+      <div class="sp-series-head"><span>Serie ${s}</span><span class="sp-series-meta">${fullCount} fertig · ${retryCount} Fehlerübung · ${partialCount} offen${hiddenPartialCount ? ' · ' + hiddenPartialCount + ' älter' : ''} · ${d.flashcards} Karteikarten</span></div>
       ${attempts ? '<div class="sp-section-title">Abgeschlossene Runden</div><div class="sp-attempts">' + attempts + '</div>' : ''}
       ${timeline ? '<div class="sp-section-title">Letzte Aktivitäten</div><div class="sp-timeline">' + timeline + '</div>' : ''}
       ${mistakeTags ? '<div class="sp-section-title">Fehlerwörter</div><div class="sp-mistakes">' + mistakeTags + '</div>' : ''}
@@ -3334,11 +3541,13 @@ function showStudentDetail(animal, data) {
       <span class="sp-summary-chip">${totalQuizzes} fertige${totalQuizzes === 1 ? 's' : ''} Diktat${totalQuizzes !== 1 ? 'e' : ''}</span>
       <span class="sp-summary-chip">${totalRetry} Fehlerübung${totalRetry !== 1 ? 'en' : ''}</span>
       <span class="sp-summary-chip">${totalPartial} offene Zwischenstände</span>
+      ${totalHiddenPartial ? `<span class="sp-summary-chip">${totalHiddenPartial} ältere Starts ausgeblendet</span>` : ''}
       <span class="sp-summary-chip">${totalFlash} Karteikarten</span>
       <span class="sp-summary-chip">${seriesKeys.length} Serien</span>
       <span class="sp-summary-chip">zuletzt: ${esc(formatRelativePractice(latestPractice))}</span>
     </div>
     <div class="sp-help">Offene Zwischenstände sind begonnene, nicht fertig abgeschlossene Diktate. Ein Kind kann ein angefangenes Diktat auf demselben Gerät und mit demselben Tier weiterführen. Tipp bedeutet: Das Kind hat eine Hilfe anzeigen lassen. Nochmal probiert bedeutet: Nach einer falschen Eingabe wurde der direkte zweite Versuch genutzt.</div>
+    ${studentWarnings.length ? '<div class="sp-section-title">Warnsignale</div><div class="sp-mistakes">' + studentWarnings.map(w => `<span class="sp-mistake-tag ${w.level === 'danger' ? 'warn' : 'help'}">${esc(w.text)}</span>`).join('') + '</div>' : ''}
     ${seriesHTML}
     ${globalHTML}
   </div>`;

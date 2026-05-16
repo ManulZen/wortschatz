@@ -5,6 +5,23 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 23: Data-informed coaching and warning signals
+
+**What changed:**
+- Added teacher warning signals for patterns seen in the class data: unfinished dictations, many older starts, low full-dictation score, likely guessing, ineffective retries, and unused tips
+- Teacher detail views now collapse stale partial docs for display, keeping the latest still-open partial per child/series and showing how many older starts were hidden
+- Child quiz flow now makes first-level hints available after typing begins
+- After a wrong first attempt, the app replays the word, shows the first hint, and labels the next action as listening and writing again
+- Very short one-character guesses for longer words now trigger a listening prompt instead of being saved as answered attempts
+- Updated student mode copy to encourage listening, quiet repetition, and conscious use of tips
+- Updated `AGENTS.md` with the new hint/retry and stale-partial display behavior
+
+**Important notes:**
+- Stale partial collapsing is display-only; it does not delete old Firestore result docs
+- The goal is to reduce guessing loops and make the teacher dashboard distinguish "needs help" from "has completed attempts"
+
+---
+
 ## 2026-05-16 — Session 22: Clearer teacher detail overview
 
 **What changed:**

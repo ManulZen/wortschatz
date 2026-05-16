@@ -104,6 +104,7 @@ Quiz/flashcard results live in Firestore collection `results`.
 `mistakes` must use the object format above. Legacy string mistakes are migrated from the teacher dashboard to `{word, typed: null}`.
 `hintsUsed` is optional and records student-visible progressive hints used during a quiz. `level` is 1–3, where higher levels reveal more structure but never the full word.
 `retriesUsed` is optional and records words that were tried again inside the same quiz question. Wrong first attempts still remain in `mistakes` even if the second attempt is correct.
+Students can request a first-level hint after starting to type. After a wrong first attempt, the app automatically replays the word, shows the first hint, and steers the child toward the immediate retry. Very short one-character guesses for longer words are treated as listening prompts and are not saved as answered attempts.
 
 Started but unfinished dictations are stored as overwriteable partial docs, not as final scores:
 
@@ -130,6 +131,7 @@ Started but unfinished dictations are stored as overwriteable partial docs, not 
 
 Partial docs are updated after answered words and deleted when the quiz completes. Student resume state is also cached locally in `ws_quiz_draft_<animal>_<series>`.
 Resume depends on that local browser cache, so it works on the same device/browser/account. If a child explicitly starts a new attempt instead of continuing an existing draft, the matching Firestore partial doc is deleted to avoid stale open attempts in the teacher dashboard.
+The teacher dashboard collapses stale partial docs for display: per child and series it keeps the latest still-open partial, hides older partials, and hides partials older than a completed quiz for that series. This is display-only and does not delete historical Firestore docs.
 
 ## Firebase
 
