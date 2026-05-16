@@ -5,6 +5,20 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 21: Infinitiv-Werkstatt word list refresh
+
+**What changed:**
+- Updated default series 5-10 from the revised `Wortschatzwerkstatt_3Klasse (2).pdf` student worksheet pages
+- Replaced several conjugated verb forms with infinitives and added the updated noun phrases from the worksheet
+- Added `DEFAULT_SERIES_VERSION = "2026-05-16-infinitiv-werkstatt"` so existing Firestore `custom_series` docs for unchanged seeded class material are refreshed once
+- The refresh writes only `words`, `contentVersion`, and `updated` with merge semantics, preserving existing result documents, recording metadata, other series fields, and manual custom word-list edits
+- Documented optional `contentVersion`/`updated` fields in `AGENTS.md`
+
+**Important notes:**
+- The PDF's overview and solution pages still show the older lists; the app now follows the per-series student worksheet pages
+- Series 5 contains `rennen` twice because the revised worksheet page contains it twice
+- Existing teacher recordings for renamed words are preserved in Firestore/Storage but only matching word keys will be used by the student player
+
 ## 2026-05-05 — Session 20: Recording draft autosave on next recording
 
 **What changed:**

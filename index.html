@@ -1604,6 +1604,15 @@ const DEFAULT_SERIES = {
   2:  ["fallen", "liess", "einmal", "plötzlich", "fleissig", "sehen", "morgen", "nie", "Strasse", "Vater"],
   3:  ["hält", "sehr", "weiss", "wäre", "Vogel", "bekommt", "ziemlich", "sitzt", "gibt", "steht"],
   4:  ["alle", "nehmen", "muss", "viel", "Kind", "ohne", "Ende", "fällt", "ein bisschen", "spielt"],
+  5:  ["der Lehrer", "schnell", "jetzt", "rennen", "nichts", "hier", "rennen", "fahren", "der Geburtstag", "sehen"],
+  6:  ["das Mädchen", "zu Hause", "sollen", "dieses", "die Mutter", "fehlen", "endlich", "los", "schwimmen", "rufen"],
+  7:  ["draussen", "voll", "kommen", "nächste", "gehen", "nehmen", "wenn", "aussen", "auf einmal", "werden"],
+  8:  ["nämlich", "Tag", "wissen", "immer", "kriegen", "mehr", "sehen", "sagen", "man", "können"],
+  9:  ["stellen", "der Fussball", "ganz", "fallen", "am Abend", "essen", "bekommen", "müde", "allein", "heraus"],
+  10: ["halten", "ihm", "schreiben", "denn", "vielleicht", "wenig", "das Schulhaus", "wollen", "stehen", "der Hockeyschläger"]
+};
+const DEFAULT_SERIES_VERSION = '2026-05-16-infinitiv-werkstatt';
+const PREVIOUS_DEFAULT_SERIES = {
   5:  ["Lehrer", "schnell", "jetzt", "hatte", "nichts", "hier", "rennt", "fährt", "lassen", "sieht"],
   6:  ["Mädchen", "zu Hause", "soll", "dies", "Mutter", "fehlt", "endlich", "los", "nahm", "rief"],
   7:  ["ihn", "voll", "kam", "nächste", "geht", "nimm", "wenn", ["aussen", "ausser", "draussen"], "auf einmal", "wird"],
@@ -1714,6 +1723,11 @@ function decodeWordFromFirestore(entry) {
 
 function encodeWordsForFirestore(words) {
   return words.map(encodeWordForFirestore);
+}
+
+function wordListsEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  return JSON.stringify(encodeWordsForFirestore(a)) === JSON.stringify(encodeWordsForFirestore(b));
 }
 
 function decodeWordsFromFirestore(words) {
@@ -3376,10 +3390,12 @@ async function loadSeries() {
     SERIES = {};
     SERIES_AUDIO = {};
     SERIES_REFRESHED_AT = {};
+    const docsByNum = {};
     snapshot.forEach(doc => {
       const d = doc.data();
       const num = Number(doc.id);
       if (num && d.words && Array.isArray(d.words)) {
+        docsByNum[num] = d;
         SERIES[num] = decodeWordsFromFirestore(d.words);
         SERIES_AUDIO[num] = d.audio || {};
         SERIES_REFRESHED_AT[num] = Date.now();
@@ -3398,10 +3414,41 @@ async function loadSeries() {
         try {
           await db.collection('custom_series').doc(String(num)).set({
             words: encodeWordsForFirestore(DEFAULT_SERIES[num]),
-            created: Date.now()
+            created: Date.now(),
+            contentVersion: DEFAULT_SERIES_VERSION
           });
         } catch(e) {
           console.warn('Failed to seed series ' + num + ':', e.message);
+        }
+      }
+    }
+    // Keep seeded class material in sync without replacing results, audio maps, or manual custom edits.
+    const outdatedDefaults = Object.keys(PREVIOUS_DEFAULT_SERIES)
+      .filter(k => docsByNum[k] && k in SERIES && docsByNum[k].contentVersion !== DEFAULT_SERIES_VERSION)
+      .filter(k => wordListsEqual(SERIES[k], PREVIOUS_DEFAULT_SERIES[k]) || wordListsEqual(SERIES[k], DEFAULT_SERIES[k]));
+    const skippedDefaultUpdates = Object.keys(PREVIOUS_DEFAULT_SERIES)
+      .filter(k => docsByNum[k] && k in SERIES && docsByNum[k].contentVersion !== DEFAULT_SERIES_VERSION)
+      .filter(k => !outdatedDefaults.includes(k));
+    if (skippedDefaultUpdates.length > 0) {
+      console.warn('Skipped default series content update because words differ from the seeded lists:', skippedDefaultUpdates.join(', '));
+    }
+    if (outdatedDefaults.length > 0) {
+      console.log('Updating default series content:', outdatedDefaults.join(', '));
+      outdatedDefaults.forEach(num => {
+        const audioMap = SERIES_AUDIO[num] || {};
+        SERIES[num] = cloneWords(DEFAULT_SERIES[num]);
+        SERIES_AUDIO[num] = audioMap;
+        SERIES_REFRESHED_AT[num] = Date.now();
+      });
+      for (const num of outdatedDefaults) {
+        try {
+          await db.collection('custom_series').doc(String(num)).set({
+            words: encodeWordsForFirestore(DEFAULT_SERIES[num]),
+            contentVersion: DEFAULT_SERIES_VERSION,
+            updated: Date.now()
+          }, { merge: true });
+        } catch(e) {
+          console.warn('Failed to update default series ' + num + ':', e.message);
         }
       }
     }

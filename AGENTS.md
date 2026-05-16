@@ -57,6 +57,8 @@ All series live in Firestore collection `custom_series`. `DEFAULT_SERIES` only s
     { alternatives: { "0": "accepted1", "1": "accepted2" } }
   ],
   created: 1710000000000,
+  contentVersion: "2026-05-16-infinitiv-werkstatt", // optional, for seeded default-series updates
+  updated: 1710000000000, // optional, when default content was refreshed
   audio: {
     "<audioKey>": {
       word: "canonical word",
