@@ -125,6 +125,29 @@ body {
   max-width: 760px;
   margin-bottom: 32px;
 }
+.other-series {
+  width: 100%;
+  max-width: 760px;
+  margin: -8px 0 32px;
+  text-align: left;
+}
+.other-series summary {
+  cursor: pointer;
+  color: var(--text-light);
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 700;
+  padding: 8px 4px;
+}
+.other-series[open] summary { margin-bottom: 8px; }
+.other-series .series-grid {
+  margin-bottom: 0;
+  opacity: 0.82;
+}
+.other-series .series-btn {
+  min-height: 112px;
+  border-width: 2px;
+  box-shadow: none;
+}
 
 .series-btn {
   font-family: 'Fredoka', sans-serif;
@@ -1518,6 +1541,10 @@ body {
   <div class="kid-greeting" id="kidGreeting"></div>
   <div class="practice-pick hidden" id="practicePick"></div>
   <div class="series-grid" id="seriesGrid"></div>
+  <details class="other-series hidden" id="otherSeriesWrap">
+    <summary>Andere Serien öffnen</summary>
+    <div class="series-grid" id="otherSeriesGrid"></div>
+  </details>
   <p class="animal-badge" id="animalBadge"></p>
   <button class="back-btn" id="logoutBtn" onclick="logout()" style="font-size:0.82rem;margin-top:4px">Wechseln</button>
 </div>
@@ -2097,9 +2124,22 @@ async function init() {
 
 function renderSeriesGrid() {
   const grid = document.getElementById('seriesGrid');
+  const otherWrap = document.getElementById('otherSeriesWrap');
+  const otherGrid = document.getElementById('otherSeriesGrid');
   grid.innerHTML = '';
+  if (otherGrid) otherGrid.innerHTML = '';
   renderPracticePick();
-  getVisibleStudentSeries().forEach(i => {
+  const groups = getStudentSeriesGroups();
+  groups.primary.forEach(i => {
+    grid.appendChild(createSeriesButton(i));
+  });
+  if (otherWrap && otherGrid) {
+    otherWrap.classList.toggle('hidden', groups.other.length === 0);
+    groups.other.forEach(i => otherGrid.appendChild(createSeriesButton(i)));
+  }
+}
+
+function createSeriesButton(i) {
     const btn = document.createElement('button');
     btn.className = 'series-btn';
     if (Number(APP_SETTINGS.focusSeries) === i) btn.classList.add('focus-series');
@@ -2123,19 +2163,21 @@ function renderSeriesGrid() {
       btn.innerHTML += `<div class="stats-bar">${buildDotHistory(i)}</div>`;
     }
     btn.onclick = () => selectSeries(i);
-    grid.appendChild(btn);
-  });
+    return btn;
 }
 
-function getVisibleStudentSeries() {
+function getStudentSeriesGroups() {
   const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
   const focus = Number(APP_SETTINGS.focusSeries) || null;
-  if (!focus || !SERIES[focus]) return keys;
-  const visible = new Set([focus]);
+  if (!focus || !SERIES[focus]) return { primary: keys, other: [] };
+  const primary = new Set([focus]);
   keys.forEach(series => {
-    if (getQuizDraft(series)) visible.add(series);
+    if (getQuizDraft(series)) primary.add(series);
   });
-  return keys.filter(series => visible.has(series));
+  return {
+    primary: keys.filter(series => primary.has(series)),
+    other: keys.filter(series => !primary.has(series))
+  };
 }
 
 function renderPracticePick() {

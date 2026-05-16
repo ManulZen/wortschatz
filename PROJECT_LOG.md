@@ -5,6 +5,19 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 26: Weekly focus without blocking other series
+
+**What changed:**
+- Weekly focus now guides instead of hiding access to other series
+- Student start screen keeps the weekly series and unfinished local drafts prominent
+- Other series remain available under a quieter expandable "Andere Serien öffnen" section
+- Updated `AGENTS.md` to document that focus is a visual priority, not a restriction
+
+**Important notes:**
+- This keeps the child path clear while preserving teacher/student flexibility to solve a non-weekly series
+
+---
+
 ## 2026-05-16 — Session 25: Simplification pass for locks and details
 
 **What changed:**

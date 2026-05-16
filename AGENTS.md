@@ -152,7 +152,7 @@ The teacher dashboard collapses stale partial docs for display: per child and se
 - Score/history localStorage keys are read caches rebuilt from Firestore: `ws_best_<n>`, `ws_history_<n>`
 - Do not write score/history localStorage directly. Use Firestore writes and `syncFromFirestore()`.
 - Student-side PIN lockout and legacy lock UI are removed to prevent children from being blocked by stale lock state.
-- If `app/settings.focusSeries` is set, the student start screen primarily shows that weekly series plus any locally unfinished dictation series so students have a narrower path.
+- If `app/settings.focusSeries` is set, the student start screen highlights that weekly series plus any locally unfinished dictation series; other series remain available in a less prominent expandable area.
 
 ## Audio And TTS
 
