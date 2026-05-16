@@ -5,6 +5,22 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 24: Weekly focus and narrower student path
+
+**What changed:**
+- Added a shared `app/settings.focusSeries` class setting for a teacher-selected weekly series
+- Teacher series management now has a "Wochenserie" action and a dashboard focus panel showing the active focus and recording coverage
+- Student start screen now primarily shows the weekly series when a focus is set, plus any locally unfinished dictation series so students can still resume work
+- Mode selection now prioritizes "Weitermachen" when a draft exists and hides competing mode cards until the draft is continued or explicitly discarded
+- Added an explicit "Angefangenes Diktat verwerfen" action that deletes the matching partial doc before returning to normal mode choices
+- Updated `AGENTS.md` to document `app/settings` and focused weekly-series behavior
+
+**Important notes:**
+- Focus mode is a class-wide narrowing tool, not a permission boundary; the app still trusts the client because this is a class prototype with permissive Firebase rules
+- Draft visibility still depends on localStorage, so unfinished work is resumable on the same device/browser/account
+
+---
+
 ## 2026-05-16 — Session 23: Data-informed coaching and warning signals
 
 **What changed:**

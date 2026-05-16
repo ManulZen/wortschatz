@@ -321,6 +321,22 @@ body {
   color: var(--text-light);
   font-size: 0.9rem;
 }
+.series-btn.focus-series {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg), 0 0 0 4px rgba(255,209,102,0.28);
+}
+.series-focus-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text);
+  padding: 4px 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
 
 /* --- MODE SELECT --- */
 .mode-select {
@@ -390,6 +406,28 @@ body {
 .mode-card p {
   font-size: 0.9rem;
   color: var(--text-light);
+}
+.mode-card.primary-path {
+  border-color: var(--accent);
+  background: #FFF8D8;
+}
+.mode-small-action {
+  margin-top: 12px;
+  border: 2px solid rgba(37,49,59,0.12);
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+.mode-small-action:hover,
+.mode-small-action:focus-visible {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+  outline: none;
 }
 
 .mode-icon {
@@ -1057,6 +1095,26 @@ body {
 }
 .refresh-btn:hover { transform: translateY(-2px); }
 .teacher-actions .refresh-btn { margin-bottom: 0; }
+.focus-control {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.focus-control strong {
+  font-family: 'Fredoka', sans-serif;
+  color: var(--primary);
+}
+.focus-control span {
+  color: var(--text-light);
+  font-size: 0.86rem;
+}
 .teacher-table {
   width: 100%;
   border-collapse: collapse;
@@ -1205,6 +1263,10 @@ body {
   box-shadow: var(--shadow);
   margin-bottom: 8px;
   font-size: 0.9rem;
+}
+.series-manage-item.focus-series {
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow), 0 0 0 4px rgba(255,209,102,0.18);
 }
 .series-manage-item .snum { font-family: 'Fredoka', sans-serif; font-weight: 700; color: var(--primary); min-width: 40px; }
 .series-manage-item .words { color: var(--text-light); min-width: 0; }
@@ -1466,8 +1528,8 @@ body {
 <div id="modeScreen" class="mode-select hidden">
   <h2 id="modeTitle">Serie 1</h2>
   <p class="series-best" id="seriesBest"></p>
-  <div class="mode-cards">
-    <div class="mode-card" role="button" tabindex="0" onclick="startQuiz(false)" onkeydown="activateOnKey(event, () => startQuiz(false))">
+    <div class="mode-cards">
+    <div class="mode-card" id="dictationCard" role="button" tabindex="0" onclick="startQuiz(false)" onkeydown="activateOnKey(event, () => startQuiz(false))">
       <div class="mode-icon">✏️</div>
       <h3>Diktat-Modus</h3>
       <p>Höre das Wort, sprich es leise nach und schreibe es. Tipps helfen, wenn du unsicher bist.</p>
@@ -1476,13 +1538,14 @@ body {
       <div class="mode-icon">⏯</div>
       <h3>Weitermachen</h3>
       <p id="resumeQuizText">Dein angefangenes Diktat fortsetzen.</p>
+      <button class="mode-small-action" type="button" onclick="discardQuizDraftFromMode(event)">Angefangenes Diktat verwerfen</button>
     </div>
     <div class="mode-card" id="retryWrongCard" role="button" tabindex="0" onclick="startQuiz(true)" onkeydown="activateOnKey(event, () => startQuiz(true))">
       <div class="mode-icon">🔁</div>
       <h3>Fehler üben</h3>
       <p>Nur die schwierigen Wörter. Hör langsam, nutze Tipps und versuche sie bewusst nochmal.</p>
     </div>
-    <div class="mode-card" role="button" tabindex="0" onclick="startFlashcards()" onkeydown="activateOnKey(event, startFlashcards)">
+    <div class="mode-card" id="flashcardModeCard" role="button" tabindex="0" onclick="startFlashcards()" onkeydown="activateOnKey(event, startFlashcards)">
       <div class="mode-icon">🤔</div>
       <h3>Karteikarten</h3>
       <p>Höre das Wort, stelle es dir vor, dann decke die Karte auf.</p>
@@ -1586,6 +1649,7 @@ body {
       <a class="teacher-link" id="teacherLink" target="_blank" rel="noopener">Lehrerseite öffnen</a>
       <button class="teacher-link" type="button" onclick="openPrintTemplates()">Druckvorlagen</button>
     </div>
+    <div class="focus-control" id="focusControl"></div>
     <div class="teacher-overview" id="teacherOverview"></div>
     <div id="teacherAnalysis"></div>
     <div id="lockedBar"></div>
@@ -1687,6 +1751,7 @@ let selectedAnimal = '';
 let lockedAnimals = new Set();
 let SERIES_AUDIO = {};
 let SERIES_REFRESHED_AT = {};
+let APP_SETTINGS = { focusSeries: null };
 let audioCache = {};
 let audioManagerSeries = null;
 let recorderState = {
@@ -2015,6 +2080,7 @@ function speak(text, cb) {
 async function init() {
   window.speechSynthesis.getVoices();
   await loadSeries();
+  await loadAppSettings();
   await loadLocks();
 
   if (new URLSearchParams(window.location.search).has('teacher')) {
@@ -2038,9 +2104,10 @@ function renderSeriesGrid() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
   renderPracticePick();
-  Object.keys(SERIES).map(Number).sort((a, b) => a - b).forEach(i => {
+  getVisibleStudentSeries().forEach(i => {
     const btn = document.createElement('button');
     btn.className = 'series-btn';
+    if (Number(APP_SETTINGS.focusSeries) === i) btn.classList.add('focus-series');
     const [color, soft] = seriesColors(i);
     btn.style.setProperty('--series-color', color);
     btn.style.setProperty('--series-soft', soft);
@@ -2054,12 +2121,26 @@ function renderSeriesGrid() {
       <span class="series-title">Serie ${i}</span>
       <span class="label">${preview}…</span>
       <span class="series-count">${total} Wörter</span>`;
+    if (Number(APP_SETTINGS.focusSeries) === i) {
+      btn.innerHTML += '<span class="series-focus-tag">Wochenserie</span>';
+    }
     if (best !== null) {
       btn.innerHTML += `<div class="stats-bar">${buildDotHistory(i)}</div>`;
     }
     btn.onclick = () => selectSeries(i);
     grid.appendChild(btn);
   });
+}
+
+function getVisibleStudentSeries() {
+  const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
+  const focus = Number(APP_SETTINGS.focusSeries) || null;
+  if (!focus || !SERIES[focus]) return keys;
+  const visible = new Set([focus]);
+  keys.forEach(series => {
+    if (getQuizDraft(series)) visible.add(series);
+  });
+  return keys.filter(series => visible.has(series));
 }
 
 function renderPracticePick() {
@@ -2072,8 +2153,9 @@ function renderPracticePick() {
     return;
   }
   pick.classList.remove('hidden');
+  const title = Number(APP_SETTINGS.focusSeries) === rec.series ? 'Wochenserie' : 'Heute üben';
   pick.innerHTML = `<button class="practice-btn" onclick="selectSeries(${rec.series})">
-    <strong>🚀 Heute üben: Serie ${rec.series}</strong>
+    <strong>🚀 ${title}: Serie ${rec.series}</strong>
     <span>${esc(rec.reason)}</span>
   </button>`;
 }
@@ -2081,6 +2163,20 @@ function renderPracticePick() {
 function getRecommendedSeries() {
   const keys = Object.keys(SERIES).map(Number).sort((a, b) => a - b);
   if (keys.length === 0) return null;
+  const focus = Number(APP_SETTINGS.focusSeries) || null;
+  if (focus && SERIES[focus]) {
+    const wrong = lastWrongWords[focus]?.length || 0;
+    const draft = getQuizDraft(focus);
+    return {
+      series: focus,
+      priority: 999,
+      reason: draft
+        ? `${draft.results.length}/${draft.words.length} Wörter sind angefangen.`
+        : wrong > 0
+          ? `${wrong} Fehlerwort${wrong === 1 ? '' : 'er'} warten in der Wochenserie.`
+          : 'Diese Serie ist gerade für die Klasse freigegeben.'
+    };
+  }
 
   const candidates = keys.map(series => {
     const total = SERIES[series].length || 1;
@@ -2140,7 +2236,11 @@ async function selectSeries(n) {
 
   // Show/hide "retry wrong" option
   const wrong = lastWrongWords[n];
+  const dictationCard = document.getElementById('dictationCard');
   const retryCard = document.getElementById('retryWrongCard');
+  const flashCard = document.getElementById('flashcardModeCard');
+  dictationCard.classList.remove('hidden');
+  flashCard.classList.remove('hidden');
   retryCard.classList.toggle('hidden', !wrong || wrong.length === 0);
 
   const draft = getQuizDraft(n);
@@ -2148,9 +2248,14 @@ async function selectSeries(n) {
   const resumeText = document.getElementById('resumeQuizText');
   if (draft) {
     resumeCard.classList.remove('hidden');
+    resumeCard.classList.add('primary-path');
     resumeText.textContent = `${draft.results.length}/${draft.words.length} Wörter fertig · weitermachen`;
+    dictationCard.classList.add('hidden');
+    retryCard.classList.add('hidden');
+    flashCard.classList.add('hidden');
   } else {
     resumeCard.classList.add('hidden');
+    resumeCard.classList.remove('primary-path');
   }
 
   showScreen('modeScreen');
@@ -2278,6 +2383,16 @@ function resumeQuiz() {
   const draft = getQuizDraft(currentSeries);
   if (!draft) return;
   restoreQuizDraft(draft);
+}
+
+async function discardQuizDraftFromMode(event) {
+  if (event) event.stopPropagation();
+  const draft = getQuizDraft(currentSeries);
+  if (!draft) return;
+  if (!confirm('Angefangenes Diktat wirklich verwerfen?')) return;
+  if (draft.sessionId) await deletePartialBySession(draft.sessionId);
+  clearQuizDraft(currentSeries);
+  await selectSeries(currentSeries);
 }
 
 function quizProgressPayload(partial) {
@@ -2955,6 +3070,7 @@ async function loadTeacherDashboard() {
 
     await loadLocks();
     renderLockedBar();
+    renderTeacherFocusControl();
     renderTeacherOverview(teacherData, docs);
     renderTeacherAnalysis(teacherData, docs);
     renderTeacherGrid(teacherData);
@@ -3025,6 +3141,22 @@ function updateTeacherLinks() {
   const base = window.location.origin + window.location.pathname;
   document.getElementById('studentLink').href = base;
   document.getElementById('teacherLink').href = base + '?teacher';
+}
+
+function renderTeacherFocusControl() {
+  const box = document.getElementById('focusControl');
+  if (!box) return;
+  const focus = Number(APP_SETTINGS.focusSeries) || null;
+  if (!focus || !SERIES[focus]) {
+    box.innerHTML = `<div><strong>Keine Wochenserie gesetzt</strong><br><span>Kinder sehen aktuell alle Serien. Setze unten bei einer Serie den Fokus.</span></div>`;
+    return;
+  }
+  const words = SERIES[focus] || [];
+  const audioCount = Object.keys(SERIES_AUDIO[focus] || {}).length;
+  const missing = Math.max(0, words.length - audioCount);
+  box.innerHTML = `<div><strong>Wochenserie: Serie ${focus}</strong><br><span>${words.length} Wörter · ${audioCount}/${words.length} Aufnahmen${missing ? ' · ' + missing + ' fehlen' : ''}. Kinder sehen primär diese Serie.</span></div>`;
+  const clearBtn = seriesActionButton('Fokus löschen', '×', '', 'Wochenserie löschen und alle Serien wieder anzeigen', clearFocusSeries);
+  box.appendChild(clearBtn);
 }
 
 function renderTeacherOverview(teacherData, docs) {
@@ -3693,6 +3825,49 @@ async function loadSeries() {
   }
 }
 
+async function loadAppSettings() {
+  try {
+    const doc = await db.collection('app').doc('settings').get();
+    if (doc.exists) {
+      const data = doc.data();
+      const focus = Number(data.focusSeries) || null;
+      APP_SETTINGS = { focusSeries: focus && SERIES[focus] ? focus : null };
+    }
+  } catch(e) {
+    console.warn('Could not load app settings:', e.message);
+    APP_SETTINGS = { focusSeries: null };
+  }
+}
+
+async function saveFocusSeries(num) {
+  if (!SERIES[num]) return;
+  try {
+    await db.collection('app').doc('settings').set({
+      focusSeries: Number(num),
+      focusUpdated: Date.now()
+    }, { merge: true });
+    APP_SETTINGS.focusSeries = Number(num);
+    renderTeacherFocusControl();
+    renderSeriesManager();
+  } catch(e) {
+    alert('Wochenserie konnte nicht gespeichert werden: ' + e.message);
+  }
+}
+
+async function clearFocusSeries() {
+  try {
+    await db.collection('app').doc('settings').set({
+      focusSeries: firebase.firestore.FieldValue.delete(),
+      focusUpdated: Date.now()
+    }, { merge: true });
+    APP_SETTINGS.focusSeries = null;
+    renderTeacherFocusControl();
+    renderSeriesManager();
+  } catch(e) {
+    alert('Wochenserie konnte nicht gelöscht werden: ' + e.message);
+  }
+}
+
 async function refreshSeriesFromFirestore(num, force) {
   const now = Date.now();
   if (!force && now - (SERIES_REFRESHED_AT[num] || 0) < 15000) return;
@@ -3770,9 +3945,10 @@ function renderSeriesManager() {
     const audioCount = Object.keys(SERIES_AUDIO[num] || {}).length;
     const div = document.createElement('div');
     div.className = 'series-manage-item';
+    if (Number(APP_SETTINGS.focusSeries) === num) div.classList.add('focus-series');
     div.innerHTML = `<span class="snum">S${num}</span>
       <span class="words">${esc(words.slice(0, 5).map(getCanonical).join(', '))}${words.length > 5 ? ' …' : ''} (${words.length})
-        <span class="series-audio-status">${audioCount}/${words.length} Aufnahmen live</span>
+        <span class="series-audio-status">${audioCount}/${words.length} Aufnahmen live${Number(APP_SETTINGS.focusSeries) === num ? ' · Wochenserie' : ''}</span>
       </span>`;
     const actions = document.createElement('div');
     actions.className = 'series-actions';
@@ -3784,6 +3960,14 @@ function renderSeriesManager() {
       () => toggleAudioManager(num)
     );
     actions.appendChild(audio);
+    const focus = seriesActionButton(
+      Number(APP_SETTINGS.focusSeries) === num ? 'Fokus' : 'Wochenserie',
+      '★',
+      Number(APP_SETTINGS.focusSeries) === num ? 'save' : '',
+      'Serie ' + num + ' als Wochenserie für Kinder anzeigen',
+      () => saveFocusSeries(num)
+    );
+    actions.appendChild(focus);
     const edit = seriesActionButton(
       'Bearbeiten',
       '✎',
