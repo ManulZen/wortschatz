@@ -5,6 +5,21 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 22: Clearer teacher detail overview
+
+**What changed:**
+- Renamed teacher-dashboard partial attempts from "angefangen" to "offene Zwischenstände"
+- Reworked the student detail overlay into clearer sections: completed rounds, latest activities, mistake words, typed mistakes, tips used, and immediate retry usage
+- Added an explanation box for teacher-facing terms: open intermediate state, tips, and "Nochmal probiert"
+- Starting a new quiz while a local draft exists now deletes the matching Firestore partial doc before creating the new session
+- Updated `AGENTS.md` to document that resume works from the same local browser cache and that explicit new attempts clean up the old partial
+
+**Important notes:**
+- Existing old partial docs are still preserved; the UI labels them more clearly instead of treating them as finished attempts
+- Cross-device resume is not supported because the full quiz draft lives in localStorage, while Firestore partial docs store only dashboard progress
+
+---
+
 ## 2026-05-16 — Session 21: Infinitiv-Werkstatt word list refresh
 
 **What changed:**

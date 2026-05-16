@@ -129,6 +129,7 @@ Started but unfinished dictations are stored as overwriteable partial docs, not 
 ```
 
 Partial docs are updated after answered words and deleted when the quiz completes. Student resume state is also cached locally in `ws_quiz_draft_<animal>_<series>`.
+Resume depends on that local browser cache, so it works on the same device/browser/account. If a child explicitly starts a new attempt instead of continuing an existing draft, the matching Firestore partial doc is deleted to avoid stale open attempts in the teacher dashboard.
 
 ## Firebase
 
