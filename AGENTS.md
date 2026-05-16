@@ -140,7 +140,6 @@ The teacher dashboard collapses stale partial docs for display: per child and se
   - `custom_series` — source of truth for all series and recording metadata
   - `results` — one doc per completed quiz/flashcard
   - `app/settings` — shared class settings such as the current focused weekly series
-  - `app/locks` — legacy account lock state
 - Storage:
   - `teacher-audio/series-{num}/...` — uploaded teacher recordings
 - Current rules are permissive for the class prototype. Lock down before wider use.
@@ -152,7 +151,7 @@ The teacher dashboard collapses stale partial docs for display: per child and se
 - Login cache in localStorage: `ws_animal`, `ws_pin`
 - Score/history localStorage keys are read caches rebuilt from Firestore: `ws_best_<n>`, `ws_history_<n>`
 - Do not write score/history localStorage directly. Use Firestore writes and `syncFromFirestore()`.
-- Student-side PIN lockout is disabled to prevent children locking each other out. Teacher can still clear legacy locks.
+- Student-side PIN lockout and legacy lock UI are removed to prevent children from being blocked by stale lock state.
 - If `app/settings.focusSeries` is set, the student start screen primarily shows that weekly series plus any locally unfinished dictation series so students have a narrower path.
 
 ## Audio And TTS

@@ -5,6 +5,22 @@ For older entries (sessions 1–3), see [PROJECT_LOG_ARCHIVE.md](PROJECT_LOG_ARC
 
 ---
 
+## 2026-05-16 — Session 25: Simplification pass for locks and details
+
+**What changed:**
+- Removed legacy account lock UI and Firestore lock reads/writes from the active app
+- Animal selection no longer disables animals based on stale `app/locks` data
+- Teacher overview no longer shows locked-account counts
+- Student detail overlay now opens with high-level diagnosis, warning signals, top mistakes, and compact evidence per series
+- Detailed per-series timelines, typed mistakes, hint usage, retry usage, and open-state notes remain available behind a "Detailverlauf und Rohdaten anzeigen" disclosure
+- Updated `AGENTS.md` to reflect the removed lock UI
+
+**Important notes:**
+- Old `app/locks` documents may still exist in Firestore, but the app ignores them
+- The goal was deliberate deletion and simplification while preserving detailed logs when the teacher chooses to open them
+
+---
+
 ## 2026-05-16 — Session 24: Weekly focus and narrower student path
 
 **What changed:**

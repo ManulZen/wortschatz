@@ -963,14 +963,6 @@ body {
 .animal-pick:active { transform: translateY(0) scale(0.97); }
 .animal-pick.selected { border-color: var(--animal-color, var(--primary)); background: white; box-shadow: var(--shadow-lg); }
 .animal-pick .emoji { font-size: 1.8rem; display: block; margin-bottom: 2px; }
-.animal-pick.locked { opacity: 0.45; cursor: not-allowed; border-color: var(--error); background: #fff0f0; }
-.animal-pick.locked:hover { transform: none; border-color: var(--error); }
-
-.locked-bar { background: #fff3f3; border: 2px solid var(--error); border-radius: 14px; padding: 14px 18px; margin-bottom: 16px; }
-.locked-bar h3 { font-family: 'Fredoka', sans-serif; color: var(--error); font-size: 1rem; margin: 0 0 10px 0; }
-.locked-bar .locked-tag { display: inline-flex; align-items: center; gap: 6px; background: white; border: 1px solid var(--error); border-radius: 20px; padding: 4px 10px 4px 12px; margin: 3px 4px; font-size: 0.85rem; font-weight: 600; }
-.locked-bar .unlock-btn { border: none; background: var(--primary); color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; cursor: pointer; line-height: 22px; padding: 0; }
-.locked-bar .unlock-btn:hover { background: var(--primary-dark); }
 
 /* --- TEACHER VIEW --- */
 .teacher-wrap {
@@ -1251,6 +1243,12 @@ body {
 .sp-mistake-pair .typed { color: var(--error); text-decoration: line-through; font-weight: 700; }
 .sp-mistake-pair .correct { color: var(--success); font-weight: 800; }
 .sp-mistake-pair .count { color: var(--text-light); font-weight: 700; }
+.sp-evidence { display: grid; gap: 8px; margin: 12px 0; }
+.sp-evidence-row { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; font-size: 0.82rem; }
+.sp-evidence-row strong { display: block; color: var(--text); margin-bottom: 4px; }
+.sp-detail-toggle { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: #F8FAFC; padding: 10px 12px; }
+.sp-detail-toggle summary { cursor: pointer; font-family: 'Fredoka', sans-serif; font-weight: 700; color: var(--primary); }
+.sp-detail-toggle[open] summary { margin-bottom: 10px; }
 
 .series-manage-item {
   display: grid;
@@ -1652,7 +1650,6 @@ body {
     <div class="focus-control" id="focusControl"></div>
     <div class="teacher-overview" id="teacherOverview"></div>
     <div id="teacherAnalysis"></div>
-    <div id="lockedBar"></div>
     <div id="teacherGrid"><p style="color:var(--text-light)">Lade Daten…</p></div>
     <div style="margin-top:32px">
       <h2 style="font-family:'Fredoka',sans-serif;color:var(--primary);font-size:1.4rem;margin-bottom:12px">Serien verwalten</h2>
@@ -1748,7 +1745,6 @@ let lastWrongWords = {};  // keyed by series number
 let lastMistakeCounts = {};  // keyed by series number, then canonical word
 let myAnimal = '';
 let selectedAnimal = '';
-let lockedAnimals = new Set();
 let SERIES_AUDIO = {};
 let SERIES_REFRESHED_AT = {};
 let APP_SETTINGS = { focusSeries: null };
@@ -2081,7 +2077,6 @@ async function init() {
   window.speechSynthesis.getVoices();
   await loadSeries();
   await loadAppSettings();
-  await loadLocks();
 
   if (new URLSearchParams(window.location.search).has('teacher')) {
     showScreen('teacherLoginScreen');
@@ -2818,51 +2813,6 @@ function launchConfetti() {
   setTimeout(() => container.innerHTML = '', 4000);
 }
 
-// --- ACCOUNT LOCKING ---
-async function loadLocks() {
-  try {
-    const doc = await db.collection('app').doc('locks').get();
-    lockedAnimals = new Set(doc.exists ? Object.keys(doc.data()) : []);
-  } catch(e) {
-    console.warn('Could not load locks:', e);
-  }
-}
-
-async function lockAnimal(animal) {
-  lockedAnimals.add(animal);
-  try {
-    await db.collection('app').doc('locks').set({ [animal]: true }, { merge: true });
-  } catch(e) {
-    console.warn('Could not save lock:', e);
-  }
-}
-
-async function unlockAnimal(animal) {
-  lockedAnimals.delete(animal);
-  try {
-    const firebase_delete = firebase.firestore.FieldValue.delete();
-    await db.collection('app').doc('locks').update({ [animal]: firebase_delete });
-  } catch(e) {
-    console.warn('Could not remove lock:', e);
-  }
-}
-
-function renderLockedBar() {
-  const bar = document.getElementById('lockedBar');
-  if (!bar) return;
-  if (lockedAnimals.size === 0) { bar.innerHTML = ''; return; }
-  const tags = [...lockedAnimals].sort().map(a =>
-    `<span class="locked-tag">🔒 ${esc(a)}<button class="unlock-btn" title="Entsperren" onclick="teacherUnlock('${esc(a)}')">✓</button></span>`
-  ).join('');
-  bar.innerHTML = `<div class="locked-bar"><h3>Gesperrte Konten</h3>${tags}</div>`;
-}
-
-async function teacherUnlock(animal) {
-  await unlockAnimal(animal);
-  localStorage.removeItem('ws_fails_' + animal);
-  renderLockedBar();
-}
-
 // --- ANIMAL IDENTITY ---
 function showAnimalSelect() {
   renderAnimalGrid();
@@ -2874,21 +2824,14 @@ function renderAnimalGrid() {
   grid.innerHTML = '';
   document.getElementById('animalPinSection').classList.add('hidden');
   ANIMALS.forEach(animal => {
-    const locked = lockedAnimals.has(animal);
     const idx = ANIMALS.indexOf(animal);
     const [color, soft] = SERIES_COLORS[idx % SERIES_COLORS.length];
     const btn = document.createElement('button');
-    btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '') + (locked ? ' locked' : '');
+    btn.className = 'animal-pick' + (animal === selectedAnimal ? ' selected' : '');
     btn.style.setProperty('--animal-color', color);
     btn.style.setProperty('--animal-soft', soft);
-    btn.innerHTML = locked
-      ? `<span class="emoji">🔒</span>${esc(animal)}`
-      : `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
-    if (locked) {
-      btn.disabled = true;
-    } else {
-      btn.onclick = () => pickAnimal(animal);
-    }
+    btn.innerHTML = `<span class="emoji">${ANIMAL_EMOJI[animal]}</span>${esc(animal)}`;
+    btn.onclick = () => pickAnimal(animal);
     grid.appendChild(btn);
   });
 }
@@ -2916,7 +2859,6 @@ function confirmAnimal() {
   if (!pin) return;
 
   if (ANIMAL_PINS[selectedAnimal] === pin) {
-    localStorage.removeItem('ws_fails_' + selectedAnimal);
     loginAs(selectedAnimal, pin);
   } else {
     error.textContent = 'Falscher PIN. Schau auf dein Kärtchen und probiere es nochmal.';
@@ -3068,8 +3010,6 @@ async function loadTeacherDashboard() {
     });
     collapseStalePartials(teacherData);
 
-    await loadLocks();
-    renderLockedBar();
     renderTeacherFocusControl();
     renderTeacherOverview(teacherData, docs);
     renderTeacherAnalysis(teacherData, docs);
@@ -3176,7 +3116,6 @@ function renderTeacherOverview(teacherData, docs) {
   overview.innerHTML = [
     `<div class="teacher-stat"><strong>${activeAnimals}/${ANIMALS.length}</strong><span>aktive Kinder</span></div>`,
     `<div class="teacher-stat"><strong>${completedSeries}</strong><span>Diktate mit mindestens 80%</span></div>`,
-    `<div class="teacher-stat"><strong>${lockedAnimals.size}</strong><span>gesperrte Konten</span></div>`,
     `<div class="teacher-stat"><strong>${topMistake ? esc(topMistake[0]) : '—'}</strong><span>häufigster Fehler${topMistake ? ' (' + topMistake[1] + '×)' : ''}</span></div>`
   ].join('');
 }
@@ -3567,6 +3506,31 @@ function buildStudentDetailWarnings(animal, data) {
   }));
 }
 
+function buildStudentEvidence(data) {
+  const rows = Object.keys(data).map(Number).sort((a, b) => a - b).map(series => {
+    const d = data[series];
+    const full = d.quizzes.filter(q => q.practiceType === 'full');
+    const best = full.length
+      ? full.reduce((a, b) => (Number(b.correct) || 0) > (Number(a.correct) || 0) ? b : a)
+      : null;
+    const mistakeCounts = {};
+    d.quizzes.concat(d.partials).forEach(q => countMistakeWords(q, mistakeCounts));
+    const topMistakes = Object.entries(mistakeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([w, n]) => `${w} ${n}×`);
+    const bits = [];
+    if (best) bits.push(`bestes Diktat ${Number(best.correct) || 0}/${Number(best.total) || 0}`);
+    if (d.partials.length > 0) bits.push(`${d.partials.length} offen`);
+    if (d.hiddenPartials > 0) bits.push(`${d.hiddenPartials} ältere Starts`);
+    if (topMistakes.length > 0) bits.push(`Fehler: ${topMistakes.join(', ')}`);
+    if (bits.length === 0 && d.flashcards > 0) bits.push(`${d.flashcards} Karteikarten`);
+    if (bits.length === 0) return '';
+    return `<div class="sp-evidence-row"><strong>Serie ${series}</strong>${esc(bits.join(' · '))}</div>`;
+  }).filter(Boolean).join('');
+  return rows ? `<div class="sp-section-title">Wichtigste Belege</div><div class="sp-evidence">${rows}</div>` : '';
+}
+
 // --- STUDENT DETAIL ---
 function showStudentDetail(animal, data) {
   const overlay = document.getElementById('studentOverlay');
@@ -3596,6 +3560,7 @@ function showStudentDetail(animal, data) {
     });
   });
   const studentWarnings = buildStudentDetailWarnings(animal, data);
+  const evidenceHTML = buildStudentEvidence(data);
 
   // Per-series cards
   const seriesHTML = seriesKeys.map(s => {
@@ -3680,8 +3645,12 @@ function showStudentDetail(animal, data) {
     </div>
     <div class="sp-help">Offene Zwischenstände sind begonnene, nicht fertig abgeschlossene Diktate. Ein Kind kann ein angefangenes Diktat auf demselben Gerät und mit demselben Tier weiterführen. Tipp bedeutet: Das Kind hat eine Hilfe anzeigen lassen. Nochmal probiert bedeutet: Nach einer falschen Eingabe wurde der direkte zweite Versuch genutzt.</div>
     ${studentWarnings.length ? '<div class="sp-section-title">Warnsignale</div><div class="sp-mistakes">' + studentWarnings.map(w => `<span class="sp-mistake-tag ${w.level === 'danger' ? 'warn' : 'help'}">${esc(w.text)}</span>`).join('') + '</div>' : ''}
-    ${seriesHTML}
     ${globalHTML}
+    ${evidenceHTML}
+    <details class="sp-detail-toggle">
+      <summary>Detailverlauf und Rohdaten anzeigen</summary>
+      ${seriesHTML}
+    </details>
   </div>`;
   overlay.classList.remove('hidden');
 }
